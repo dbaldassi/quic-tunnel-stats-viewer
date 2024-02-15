@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 
+#include "received_bitrate_display.h"
+
 namespace Ui {
 class MainWindow;
 }
@@ -22,6 +24,8 @@ public:
 
 private:
     Ui::MainWindow *ui;
+
+    std::unique_ptr<ReceivedBitrateDisplay> _recv_display;
 };
 
 #endif // MAIN_WINDOW_H

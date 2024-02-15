@@ -4,6 +4,9 @@ qt_add_executable( ${exe}
     main_window.h
     main_window.cpp
     main_window.ui
+    received_bitrate_display.h
+    received_bitrate_display.cpp
+    csv_reader.h
     )
 
 target_link_libraries( ${exe} PUBLIC

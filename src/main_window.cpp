@@ -13,6 +13,8 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    _recv_display = std::make_unique<ReceivedBitrateDisplay>(ui->recv_tab, ui->legend_list);
 }
 
 void MainWindow::set_stats_dir(std::string dir)
@@ -51,6 +53,8 @@ void MainWindow::load()
         items.push(item);
         prev_depth = it.depth();
     }
+
+    _recv_display->load(fs::path{_stats_dir} / "mvfst/streams/mvfst_none_stream_Thu_Jan_25_16:23:21_2024/");
 }
 
 MainWindow::~MainWindow()
