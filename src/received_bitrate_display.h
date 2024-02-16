@@ -49,12 +49,12 @@ class ReceivedBitrateDisplay : public QObject
     StatsLineChartView* _chart_view_bitrate, * _chart_view_fps;
 
     QMap<StatKey, std::tuple<QString, QColor, QLineSeries*>> _map;
-    QMap<QString, StatKey> _path_keys;
+    QMap<QString, QVector<QLineSeries*>> _path_keys;
 
     void create_legend();
     StatsLineChart * create_chart();
     StatsLineChartView * create_chart_view(QChart* chart);
-    void create_serie(StatKey key);
+    void create_serie(const fs::path&p, StatKey key);
 
     template<typename T>
     void add_point(StatKey key, const T& point)

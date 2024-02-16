@@ -79,12 +79,14 @@ void ReceivedBitrateDisplay::create_legend()
     });
 }
 
-void ReceivedBitrateDisplay::create_serie(StatKey key)
+void ReceivedBitrateDisplay::create_serie(const fs::path&p, StatKey key)
 {
     auto serie = new QLineSeries;
     serie->setColor(std::get<StatsKeyProperty::COLOR>(_map[key]));
     serie->setName(std::get<StatsKeyProperty::NAME>(_map[key]));
     std::get<StatsKeyProperty::SERIE>(_map[key]) = serie;
+
+    _path_keys[p.c_str()].push_back(serie);
 }
 
 // bitrate.csv : time, bitrate, link, fps, frame_dropped, frame_decoded, frame_keydecoded, frame_rendered
@@ -95,9 +97,9 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
 
     using BitrateReader = CsvReaderTypeRepeat<',', int, 8>;
 
-    create_serie(StatKey::BITRATE);
-    create_serie(StatKey::LINK);
-    create_serie(StatKey::FPS);
+    create_serie(p, StatKey::BITRATE);
+    create_serie(p, StatKey::LINK);
+    create_serie(p, StatKey::FPS);
 
     for(auto &it : BitrateReader(path)) {
         const auto& [time, bitrate, link, fps, frame_dropped, frame_decoded, frame_key_decoded, frame_rendered] = it;
@@ -119,5 +121,14 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
 
 void ReceivedBitrateDisplay::unload(const fs::path& path)
 {
+    auto vec = _path_keys[path.c_str()];
 
+    for(auto s : vec) {
+        _chart_bitrate->removeSeries(s);
+        _chart_fps->removeSeries(s);
+
+        delete s;
+    }
+
+    _path_keys[path.c_str()] = QVector<QLineSeries*>{};
 }

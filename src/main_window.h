@@ -9,6 +9,8 @@ namespace Ui {
 class MainWindow;
 }
 
+class QTreeWidgetItem;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -26,6 +28,10 @@ private:
     Ui::MainWindow *ui;
 
     std::unique_ptr<ReceivedBitrateDisplay> _recv_display;
+
+public slots:
+
+    void on_exp_changed(QTreeWidgetItem* item, int column);
 };
 
 #endif // MAIN_WINDOW_H

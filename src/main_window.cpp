@@ -54,7 +54,36 @@ void MainWindow::load()
         prev_depth = it.depth();
     }
 
-    _recv_display->load(fs::path{_stats_dir} / "mvfst/streams/mvfst_none_stream_Thu_Jan_25_16:23:21_2024/");
+    connect(menu, &QTreeWidget::itemChanged, this, &MainWindow::on_exp_changed);
+}
+
+void MainWindow::on_exp_changed(QTreeWidgetItem* item, int column)
+{
+    if(item->childCount() > 0) return;
+
+    fs::path path = _stats_dir;
+
+    QStack<QTreeWidgetItem*> stack;
+    QTreeWidgetItem* curr = item;
+
+    while((curr = dynamic_cast<QTreeWidgetItem*>(curr->parent()))) {
+        std::cout << curr->text(0).toStdString() << " " << stack.size() << std::endl;
+        stack.push(curr);
+    }
+
+    while(!stack.empty()) {
+        path /= stack.pop()->text(0).toStdString();
+        std::cout << path << std::endl;
+    }
+
+    path /= item->text(0).toStdString();
+
+    if(item->checkState(0) == Qt::Checked) {
+        _recv_display->load(path);
+    }
+    else {
+        _recv_display->unload(path);
+    }
 }
 
 MainWindow::~MainWindow()
