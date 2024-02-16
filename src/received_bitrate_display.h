@@ -3,35 +3,73 @@
 
 #include <QString>
 #include <QColor>
+#include <QObject>
+#include <QLineSeries>
+#include <QChart>
 
 #include <filesystem>
 
 class QWidget;
 class QListWidget;
+class StatsLineChart;
+class StatsLineChartView;
 
 namespace fs = std::filesystem;
 
-class ReceivedBitrateDisplay
+class ReceivedBitrateDisplay : public QObject
 {
-    QWidget* _tab;
-    QListWidget    * _legend;
+    Q_OBJECT
 
-    void create_legend_item(const QString& text, const QColor& color);
+    enum class StatKey : uint8_t
+    {
+        // bitrate.csv
+        LINK,
+        BITRATE,
+        FPS,
+        FRAME_DROPPED,
+        FRAME_DECODED,
+        FRAME_KEY_DECODED,
+        FRAME_RENDERED,
+
+        // quic.csv
+        QUIC_SENT
+    };
+
+    enum StatsKeyProperty : uint8_t
+    {
+        NAME,
+        COLOR,
+        SERIE
+    };
+
+    QWidget     * _tab;
+    QListWidget * _legend;
+
+    StatsLineChart * _chart_bitrate, * _chart_fps;
+    StatsLineChartView* _chart_view_bitrate, * _chart_view_fps;
+
+    QMap<StatKey, std::tuple<QString, QColor, QLineSeries*>> _map;
+    QMap<QString, StatKey> _path_keys;
+
     void create_legend();
+    StatsLineChart * create_chart();
+    StatsLineChartView * create_chart_view(QChart* chart);
+    void create_serie(StatKey key);
+
+    template<typename T>
+    void add_point(StatKey key, const T& point)
+    {
+        auto s = std::get<StatsKeyProperty::SERIE>(_map[key]);
+        *s << point;
+    }
+
+    inline void add_serie(StatKey key, QChart* chart)
+    {
+        chart->addSeries(std::get<StatsKeyProperty::SERIE>(_map[key]));
+    }
+
+
 public:
-
-    // bitrate.csv
-    static const QColor LINK_COLOR;
-    static const QColor BITRATE_COLOR;
-    static const QColor FPS_COLOR;
-    static const QColor FRAME_DROPPED_COLOR;
-    static const QColor FRAME_DECODED_COLOR;
-    static const QColor FRAME_KEY_DECODED_COLOR;
-    static const QColor FRAME_RENDERED_COLOR;
-
-    // quic.csv
-    static const QColor QUIC_SENT_COLOR;
-
     ReceivedBitrateDisplay(QWidget* tab, QListWidget* legend);
     ~ReceivedBitrateDisplay() = default;
 

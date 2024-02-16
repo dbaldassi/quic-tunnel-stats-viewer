@@ -7,6 +7,7 @@ qt_add_executable( ${exe}
     received_bitrate_display.h
     received_bitrate_display.cpp
     csv_reader.h
+    stats_line_chart.h stats_line_chart.cpp
     )
 
 target_link_libraries( ${exe} PUBLIC
