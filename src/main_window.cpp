@@ -14,7 +14,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    _recv_display = std::make_unique<ReceivedBitrateDisplay>(ui->recv_tab, ui->legend_list);
+    _recv_display = std::make_unique<ReceivedBitrateDisplay>(ui->recv_tab, ui->recv_chart_layout, ui->legend_recv);
+    _medooze_display = std::make_unique<MedoozeDisplay>(ui->medooze_tab, ui->medooze_chart_layout, ui->legend_medooze);
 }
 
 void MainWindow::set_stats_dir(std::string dir)
@@ -67,22 +68,22 @@ void MainWindow::on_exp_changed(QTreeWidgetItem* item, int column)
     QTreeWidgetItem* curr = item;
 
     while((curr = dynamic_cast<QTreeWidgetItem*>(curr->parent()))) {
-        std::cout << curr->text(0).toStdString() << " " << stack.size() << std::endl;
         stack.push(curr);
     }
 
     while(!stack.empty()) {
         path /= stack.pop()->text(0).toStdString();
-        std::cout << path << std::endl;
     }
 
     path /= item->text(0).toStdString();
 
     if(item->checkState(0) == Qt::Checked) {
         _recv_display->load(path);
+        _medooze_display->load(path);
     }
     else {
         _recv_display->unload(path);
+        _medooze_display->unload(path);
     }
 }
 

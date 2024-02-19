@@ -8,6 +8,8 @@ qt_add_executable( ${exe}
     received_bitrate_display.cpp
     csv_reader.h
     stats_line_chart.h stats_line_chart.cpp
+    medooze_display.h medooze_display.cpp
+    qlog_display.h qlog_display.cpp
     )
 
 target_link_libraries( ${exe} PUBLIC

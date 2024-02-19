@@ -5,8 +5,6 @@
 #include <QLineSeries>
 #include <QVBoxLayout>
 
-#include <iostream>
-
 #include "csv_reader.h"
 #include "stats_line_chart.h"
 
@@ -30,7 +28,7 @@ StatsLineChartView * ReceivedBitrateDisplay::create_chart_view(QChart* chart)
     return chart_view;
 }
 
-ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QListWidget* legend)
+ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend)
     : _tab(tab), _legend(legend)
 {
     _map[StatKey::LINK] = std::make_tuple("link", QColorConstants::Black, nullptr);
@@ -50,8 +48,8 @@ ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QListWidget* legend
     _chart_fps = create_chart();
     _chart_view_fps = create_chart_view(_chart_fps);
 
-    _tab->layout()->addWidget(_chart_view_bitrate);
-    _tab->layout()->addWidget(_chart_view_fps);
+    layout->addWidget(_chart_view_bitrate, 1);
+    layout->addWidget(_chart_view_fps, 1);
 
     _tab->grabGesture(Qt::PanGesture);
     _tab->grabGesture(Qt::PinchGesture);

@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout_2">
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,4,1">
+     <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,4">
       <item>
        <widget class="QTreeWidget" name="exp_menu">
         <property name="horizontalScrollBarPolicy">
@@ -53,7 +53,14 @@
          <attribute name="title">
           <string>Received WebRTC stats</string>
          </attribute>
-         <layout class="QVBoxLayout" name="verticalLayout_2"/>
+         <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="4,1">
+          <item>
+           <layout class="QVBoxLayout" name="recv_chart_layout"/>
+          </item>
+          <item>
+           <widget class="QListWidget" name="legend_recv"/>
+          </item>
+         </layout>
         </widget>
         <widget class="QWidget" name="qlog_tab">
          <attribute name="title">
@@ -65,7 +72,14 @@
          <attribute name="title">
           <string>Medooze stats</string>
          </attribute>
-         <layout class="QVBoxLayout" name="verticalLayout_4"/>
+         <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="4,1">
+          <item>
+           <layout class="QVBoxLayout" name="medooze_chart_layout"/>
+          </item>
+          <item>
+           <widget class="QListWidget" name="legend_medooze"/>
+          </item>
+         </layout>
         </widget>
         <widget class="QWidget" name="all_tab">
          <attribute name="title">
@@ -74,9 +88,6 @@
          <layout class="QVBoxLayout" name="verticalLayout_5"/>
         </widget>
        </widget>
-      </item>
-      <item>
-       <widget class="QListWidget" name="legend_list"/>
       </item>
      </layout>
     </item>

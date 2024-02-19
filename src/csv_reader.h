@@ -110,7 +110,7 @@ struct TypeDuplicator<DELIMITER,NUM, T>
 template<const char DELIMITER, typename T, typename... Ts>
 struct TypeDuplicator<DELIMITER, 0,T, Ts...>
 {
-    using Type = CsvReader<',', Ts...>;
+    using Type = CsvReader<DELIMITER, Ts...>;
 };
 
 }

@@ -1,5 +1,7 @@
-#ifndef RECEIVEDBITRATEDISPLAY_H
-#define RECEIVEDBITRATEDISPLAY_H
+#ifndef MEDOOZEDISPLAY_H
+#define MEDOOZEDISPLAY_H
+
+#include <QObject>
 
 #include <QString>
 #include <QColor>
@@ -9,31 +11,44 @@
 
 #include <filesystem>
 
+namespace fs = std::filesystem;
+
 class QWidget;
 class QListWidget;
 class StatsLineChart;
 class StatsLineChartView;
 class QVBoxLayout;
 
-namespace fs = std::filesystem;
 
-class ReceivedBitrateDisplay : public QObject
+class MedoozeDisplay : public QObject
 {
     Q_OBJECT
 
     enum class StatKey : uint8_t
     {
-        // bitrate.csv
-        LINK,
-        BITRATE,
-        FPS,
-        FRAME_DROPPED,
-        FRAME_DECODED,
-        FRAME_KEY_DECODED,
-        FRAME_RENDERED,
+        // Medooze file
+        FEEDBACK_TS,
+        TWCC_NUM,
+        FEEDBACK_NUM,
+        PACKET_SIZE,
+        SENT_TIME,
+        RECEIVED_TS,
+        DELTA_SENT,
+        DELTA_RECV,
+        DELTA,
+        BWE,
+        TARGET,
+        AVAILABLE_BITRATE,
+        RTT,
+        FLAG,
+        RTX,
+        PROBING,
 
-        // quic.csv
-        QUIC_SENT
+        // calculated
+        MEDIA,
+        LOSS,
+        MINRTT,
+        FBDELAY
     };
 
     enum StatsKeyProperty : uint8_t
@@ -46,8 +61,8 @@ class ReceivedBitrateDisplay : public QObject
     QWidget     * _tab;
     QListWidget * _legend;
 
-    StatsLineChart * _chart_bitrate, * _chart_fps;
-    StatsLineChartView* _chart_view_bitrate, * _chart_view_fps;
+    StatsLineChart * _chart_bitrate, * _chart_rtt;
+    StatsLineChartView* _chart_view_bitrate, * _chart_view_rtt;
 
     QMap<StatKey, std::tuple<QString, QColor, QLineSeries*>> _map;
     QMap<QString, QVector<QLineSeries*>> _path_keys;
@@ -69,14 +84,12 @@ class ReceivedBitrateDisplay : public QObject
         chart->addSeries(std::get<StatsKeyProperty::SERIE>(_map[key]));
     }
 
-
 public:
-    ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend);
-    ~ReceivedBitrateDisplay() = default;
+    MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend);
+    ~MedoozeDisplay() = default;
 
-    // load bitrate.csv, quic.csv
     void load(const fs::path& path);
     void unload(const fs::path& path);
 };
 
-#endif // RECEIVEDBITRATEDISPLAY_H
+#endif // MEDOOZEDISPLAY_H
