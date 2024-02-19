@@ -17,6 +17,8 @@ target_link_libraries( ${exe} PUBLIC
   Qt6::OpenGL
   Qt6::Charts
   Qt6::Core
+
+  nlohmann_json
   )
 
 set_target_properties( ${exe}

@@ -5,6 +5,7 @@
 
 #include "received_bitrate_display.h"
 #include "medooze_display.h"
+#include "qlog_display.h"
 
 namespace Ui {
 class MainWindow;
@@ -30,6 +31,7 @@ private:
 
     std::unique_ptr<ReceivedBitrateDisplay> _recv_display;
     std::unique_ptr<MedoozeDisplay> _medooze_display;
+    std::unique_ptr<QlogDisplay> _qlog_display;
 
 public slots:
 

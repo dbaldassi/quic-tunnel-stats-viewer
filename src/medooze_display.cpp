@@ -98,11 +98,9 @@ void MedoozeDisplay::create_serie(const fs::path&p, StatKey key)
 
     _path_keys[p.c_str()].push_back(serie);
 }
-#include <iostream>
+
 void MedoozeDisplay::load(const fs::path& p)
 {
-    // fs::path path = p / "bitrate.csv";
-
     fs::path path;
     for (auto const& dir_entry : std::filesystem::recursive_directory_iterator{p}) {
         if(dir_entry.path().filename().string().starts_with("quic-relay-") && dir_entry.path().extension() == ".csv") {
@@ -110,8 +108,6 @@ void MedoozeDisplay::load(const fs::path& p)
             break;
         }
     }
-
-    std::cout << path.string() << std::endl;
 
     using MedoozeReader = CsvReaderTypeRepeat<'|', int, 17>;
 
@@ -129,8 +125,6 @@ void MedoozeDisplay::load(const fs::path& p)
     for(auto &it : MedoozeReader(path)) {
         const auto& [fb_ts, twcc_num, fb_num, packet_size, sent_time, recv_ts, delta_sent, delta_recv, delta,
                      bwe, target, available_bitrate, rtt, minrtt, flag, rtx, probing] = it;
-
-        // QPoint p_bitrate(time, bitrate), p_fps(time, fps), p_link(time, link);
 
         int timestamp = sent_time / 1000000;
 
