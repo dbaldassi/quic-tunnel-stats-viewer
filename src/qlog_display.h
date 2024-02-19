@@ -64,6 +64,7 @@ class QlogDisplay : public QObject
     }
 
     void parse_mvfst(const fs::path& path);
+    void parse_quicgo(const fs::path& path);
 public:
     QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend);
     ~QlogDisplay() = default;

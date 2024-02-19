@@ -132,6 +132,41 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
     }
 }
 
+void QlogDisplay::parse_quicgo(const fs::path& path)
+{
+    std::ifstream ifs(path);
+    std::string line;
+
+    while(std::getline(ifs, line)) {
+        auto pos = line.find("{");
+
+        auto line_json = json::parse(line.substr(pos));
+
+        try {
+            if(line_json["name"].get<std::string>() != "recovery:metrics_updated") continue;
+
+            auto data = line_json["data"];
+
+            auto time = line_json["time"].get<float>() / 1000.f;
+
+            if(data.contains("congestion_window")) {
+                QPointF p_cwnd{time, data["congestion_window"].get<float>()};
+                add_point(StatKey::CWND, p_cwnd);
+            }
+
+            if(data.contains("bytes_in_flight")) {
+                QPointF p_bif{time, data["bytes_in_flight"].get<float>()};
+                add_point(StatKey::BYTES_IN_FLIGHT, p_bif);
+            }
+
+            if(data.contains("latest_rtt")) {
+                QPointF p_rtt{time, data["latest_rtt"].get<float>()};
+                add_point(StatKey::RTT, p_rtt);
+            }
+        } catch(...) {}
+    }
+}
+
 void QlogDisplay::load(const fs::path& p)
 {
     fs::path path;
@@ -151,10 +186,19 @@ void QlogDisplay::load(const fs::path& p)
     create_serie(p, StatKey::CWND);
     create_serie(p, StatKey::RTT);
 
+    auto impl = path.parent_path().filename().string();
 
-    if(path.parent_path().filename().string().starts_with("mvfst")) {
+    if(impl.starts_with("mvfst")) {
         std::cout << "Parsing mvfst file : " << path << std::endl;
         parse_mvfst(path);
+    }
+    else if(impl.starts_with("quicgo")) {
+        std::cout << "Parsing quicgo file : " << path << std::endl;
+        parse_quicgo(path);
+    }
+    else if(impl.starts_with("quiche")) {
+        std::cout << "Parsing quiche file : " << path << std::endl;
+        parse_quicgo(path);
     }
 
     add_serie(StatKey::BYTES_IN_FLIGHT, _chart_bitrate);
