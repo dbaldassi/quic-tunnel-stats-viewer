@@ -39,7 +39,6 @@ class ReceivedBitrateDisplay : public QObject
     enum StatsKeyProperty : uint8_t
     {
         NAME,
-        COLOR,
         SERIE
     };
 
@@ -49,7 +48,7 @@ class ReceivedBitrateDisplay : public QObject
     StatsLineChart * _chart_bitrate, * _chart_fps;
     StatsLineChartView* _chart_view_bitrate, * _chart_view_fps;
 
-    QMap<StatKey, std::tuple<QString, QColor, QLineSeries*>> _map;
+    QMap<StatKey, std::tuple<QString, QLineSeries*>> _map;
     QMap<QString, QVector<QLineSeries*>> _path_keys;
 
     void create_legend();
@@ -68,7 +67,6 @@ class ReceivedBitrateDisplay : public QObject
     {
         chart->addSeries(std::get<StatsKeyProperty::SERIE>(_map[key]));
     }
-
 
 public:
     ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend);

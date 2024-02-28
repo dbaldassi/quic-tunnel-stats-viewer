@@ -31,14 +31,23 @@ StatsLineChartView * ReceivedBitrateDisplay::create_chart_view(QChart* chart)
 ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend)
     : _tab(tab), _legend(legend)
 {
-    _map[StatKey::LINK] = std::make_tuple("link", QColorConstants::Black, nullptr);
+    /*_map[StatKey::LINK] = std::make_tuple("link", QColorConstants::Black, nullptr);
     _map[StatKey::BITRATE] = std::make_tuple("bitrate", QColorConstants::Red, nullptr);
     _map[StatKey::FPS] = std::make_tuple("fps", QColorConstants::Red, nullptr);
     _map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", QColorConstants::DarkBlue, nullptr);
     _map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", QColorConstants::DarkGreen, nullptr);
     _map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", QColorConstants::Magenta, nullptr);
     _map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", QColorConstants::DarkYellow, nullptr);
-    _map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", QColorConstants::Green, nullptr);
+    _map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", QColorConstants::Green, nullptr);*/
+
+    _map[StatKey::LINK] = std::make_tuple("link", nullptr);
+    _map[StatKey::BITRATE] = std::make_tuple("bitrate", nullptr);
+    _map[StatKey::FPS] = std::make_tuple("fps", nullptr);
+    _map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", nullptr);
+    _map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", nullptr);
+    _map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", nullptr);
+    _map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", nullptr);
+    _map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", nullptr);
 
     create_legend();
 
@@ -61,7 +70,7 @@ void ReceivedBitrateDisplay::create_legend()
         QListWidgetItem * item = new QListWidgetItem(_legend);
         item->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
         item->setCheckState(Qt::Checked);
-        item->setForeground(QBrush(std::get<StatsKeyProperty::COLOR>(it.value())));
+        // item->setForeground(QBrush(std::get<StatsKeyProperty::COLOR>(it.value())));
         item->setText(std::get<StatsKeyProperty::NAME>(it.value()));
         item->setData(1, static_cast<uint8_t>(it.key()));
     }
@@ -80,8 +89,28 @@ void ReceivedBitrateDisplay::create_legend()
 void ReceivedBitrateDisplay::create_serie(const fs::path&p, StatKey key)
 {
     auto serie = new QLineSeries;
-    serie->setColor(std::get<StatsKeyProperty::COLOR>(_map[key]));
-    serie->setName(std::get<StatsKeyProperty::NAME>(_map[key]));
+    // serie->setColor(std::get<StatsKeyProperty::COLOR>(_map[key]));
+
+    QString name;
+    QTextStream stream(&name);
+
+    std::stringstream exp_name(p.filename().string());
+
+    stream << std::get<StatsKeyProperty::NAME>(_map[key]) << " "
+           << "(";
+
+    for(int i = 0; i < 3; ++i) {
+        std::string line;
+        std::getline(exp_name, line, '_');
+
+        if(i != 0) stream << "_";
+
+        stream << line.c_str();
+    }
+
+    stream << ")";
+
+    serie->setName(name);
     std::get<StatsKeyProperty::SERIE>(_map[key]) = serie;
 
     _path_keys[p.c_str()].push_back(serie);
