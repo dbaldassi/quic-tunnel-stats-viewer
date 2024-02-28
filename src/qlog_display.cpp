@@ -5,6 +5,7 @@
 #include <QListWidget>
 #include <QLineSeries>
 #include <QVBoxLayout>
+#include <QTreeWidgetItem>
 
 #include "qlog_display.h"
 
@@ -34,8 +35,8 @@ StatsLineChartView * QlogDisplay::create_chart_view(QChart* chart)
 }
 
 
-QlogDisplay::QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend)
-    : _tab(tab), _legend(legend)
+QlogDisplay::QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info_widget)
+    : _tab(tab), _legend(legend), _info_widget(info_widget)
 {
     _map[StatKey::CWND] = std::make_tuple("Cwnd", QColorConstants::Red, nullptr);
     _map[StatKey::BYTES_IN_FLIGHT] = std::make_tuple("Bytes in flight", QColorConstants::Blue, nullptr);
@@ -96,40 +97,57 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
 
     int64_t time_0 = -1;
 
+    Info info{0,0};
+
     for(auto& trace : qlog_data["traces"]) {
         for(auto& event : trace["events"]) {
             auto name = event["name"].get<std::string>();
 
             // std::cout << name << std::endl;
-            if(name != "recovery:metrics_updated") continue;
+            if(name == "recovery:metrics_updated") {
+                try {
+                    if(time_0 == -1) time_0 = event["time"].get<int64_t>();
 
-            try {
-                if(time_0 == -1) time_0 = event["time"].get<int64_t>();
+                    int64_t time = event["time"].get<int64_t>() - time_0;
+                    auto data = event["data"];
 
-                int64_t time = event["time"].get<int64_t>() - time_0;
-                auto data = event["data"];
+                    QPointF p_cwnd{time/1000000.f, data["congestion_window"].get<float>()};
+                    QPointF p_bif{time/1000000.f, data["bytes_in_flight"].get<float>()};
 
-                QPointF p_cwnd{time/1000000.f, data["congestion_window"].get<float>()};
-                QPointF p_bif{time/1000000.f, data["bytes_in_flight"].get<float>()};
+                    add_point(StatKey::CWND, p_cwnd);
+                    add_point(StatKey::BYTES_IN_FLIGHT, p_bif);
+                } catch(...) { }
 
-                // std::cout << p_cwnd.x() << " " << p_cwnd.y() << std::endl;
+                try {
+                    if(time_0 == -1) time_0 = event["time"].get<int64_t>();
 
-                add_point(StatKey::CWND, p_cwnd);
-                add_point(StatKey::BYTES_IN_FLIGHT, p_bif);
-            } catch(...) { }
+                    int64_t time = event["time"].get<int64_t>() - time_0;
+                    auto data = event["data"];
 
-            try {
-                if(time_0 == -1) time_0 = event["time"].get<int64_t>();
+                    QPointF p_rtt{time/1000000.f, data["latest_rtt"].get<float>()};
+                    add_point(StatKey::RTT, p_rtt);
 
-                int64_t time = event["time"].get<int64_t>() - time_0;
-                auto data = event["data"];
-
-                QPointF p_rtt{time/1000000.f, data["latest_rtt"].get<float>()};
-                add_point(StatKey::RTT, p_rtt);
-
-            } catch(...) {}
+                } catch(...) {}
+            }
+            else if(name == "loss:packets_lost") {
+                info.lost += event["data"]["lost_packets"].get<int>();
+            }
+            else if(name == "transport:packet_sent") {
+                ++info.sent;
+            }
         }
     }
+
+    QTreeWidgetItem * item = new QTreeWidgetItem(_info_widget);
+    item->setText(0, path.parent_path().filename().c_str());
+
+    QTreeWidgetItem * loss = new QTreeWidgetItem(item);
+    loss->setText(0, "Lost");
+    loss->setText(1, QString::number(info.lost));
+
+    QTreeWidgetItem * sent = new QTreeWidgetItem(item);
+    sent->setText(0, "Sent");
+    sent->setText(1, QString::number(info.sent));
 }
 
 void QlogDisplay::parse_quicgo(const fs::path& path)
@@ -137,34 +155,53 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
     std::ifstream ifs(path);
     std::string line;
 
+    Info info{0,0};
+
     while(std::getline(ifs, line)) {
         auto pos = line.find("{");
 
         auto line_json = json::parse(line.substr(pos));
 
         try {
-            if(line_json["name"].get<std::string>() != "recovery:metrics_updated") continue;
+            auto name = line_json["name"].get<std::string>();
+            if(name == "recovery:metrics_updated") {
+                auto data = line_json["data"];
+                auto time = line_json["time"].get<float>() / 1000.f;
 
-            auto data = line_json["data"];
+                if(data.contains("congestion_window")) {
+                    QPointF p_cwnd{time, data["congestion_window"].get<float>()};
+                    add_point(StatKey::CWND, p_cwnd);
+                }
 
-            auto time = line_json["time"].get<float>() / 1000.f;
+                if(data.contains("bytes_in_flight")) {
+                    QPointF p_bif{time, data["bytes_in_flight"].get<float>()};
+                    add_point(StatKey::BYTES_IN_FLIGHT, p_bif);
+                }
 
-            if(data.contains("congestion_window")) {
-                QPointF p_cwnd{time, data["congestion_window"].get<float>()};
-                add_point(StatKey::CWND, p_cwnd);
+                if(data.contains("latest_rtt")) {
+                    QPointF p_rtt{time, data["latest_rtt"].get<float>()};
+                    add_point(StatKey::RTT, p_rtt);
+                }
             }
-
-            if(data.contains("bytes_in_flight")) {
-                QPointF p_bif{time, data["bytes_in_flight"].get<float>()};
-                add_point(StatKey::BYTES_IN_FLIGHT, p_bif);
+            else if(name == "transport:packet_lost") {
+                ++info.lost;
             }
-
-            if(data.contains("latest_rtt")) {
-                QPointF p_rtt{time, data["latest_rtt"].get<float>()};
-                add_point(StatKey::RTT, p_rtt);
+            else if(name == "transport:packet_sent") {
+                ++info.sent;
             }
         } catch(...) {}
     }
+
+    QTreeWidgetItem * item = new QTreeWidgetItem(_info_widget);
+    item->setText(0, path.parent_path().filename().c_str());
+
+    QTreeWidgetItem * loss = new QTreeWidgetItem(item);
+    loss->setText(0, "Lost");
+    loss->setText(1, QString::number(info.lost));
+
+    QTreeWidgetItem * sent = new QTreeWidgetItem(item);
+    sent->setText(0, "Sent");
+    sent->setText(1, QString::number(info.sent));
 }
 
 void QlogDisplay::load(const fs::path& p)
@@ -198,6 +235,10 @@ void QlogDisplay::load(const fs::path& p)
     }
     else if(impl.starts_with("quiche")) {
         std::cout << "Parsing quiche file : " << path << std::endl;
+        parse_quicgo(path);
+    }
+    else if(impl.starts_with("msquic")) {
+        std::cout << "Parsing msquic file : " << path << std::endl;
         parse_quicgo(path);
     }
 

@@ -71,7 +71,31 @@
            <layout class="QVBoxLayout" name="qlog_chart_layout"/>
           </item>
           <item>
-           <widget class="QListWidget" name="legend_qlog"/>
+           <layout class="QVBoxLayout" name="verticalLayout" stretch="1,1">
+            <item>
+             <widget class="QListWidget" name="legend_qlog"/>
+            </item>
+            <item>
+             <widget class="QTreeWidget" name="qlog_info">
+              <property name="columnCount">
+               <number>2</number>
+              </property>
+              <attribute name="headerVisible">
+               <bool>false</bool>
+              </attribute>
+              <column>
+               <property name="text">
+                <string notr="true">1</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string notr="true">2</string>
+               </property>
+              </column>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>

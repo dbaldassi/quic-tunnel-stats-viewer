@@ -18,6 +18,7 @@ class QListWidget;
 class StatsLineChart;
 class StatsLineChartView;
 class QVBoxLayout;
+class QTreeWidget;
 
 class QlogDisplay : public QObject
 {
@@ -37,8 +38,14 @@ class QlogDisplay : public QObject
         SERIE
     };
 
+    struct Info {
+        int lost;
+        int sent;
+    };
+
     QWidget     * _tab;
     QListWidget * _legend;
+    QTreeWidget * _info_widget;
 
     StatsLineChart * _chart_bitrate, * _chart_rtt;
     StatsLineChartView* _chart_view_bitrate, * _chart_view_rtt;
@@ -66,7 +73,7 @@ class QlogDisplay : public QObject
     void parse_mvfst(const fs::path& path);
     void parse_quicgo(const fs::path& path);
 public:
-    QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend);
+    QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info_widget);
     ~QlogDisplay() = default;
 
     void load(const fs::path& path);
