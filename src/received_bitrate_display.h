@@ -39,7 +39,15 @@ class ReceivedBitrateDisplay : public QObject
     enum StatsKeyProperty : uint8_t
     {
         NAME,
-        SERIE
+        SERIE,
+        CHART
+    };
+
+    enum ChartKey
+    {
+        BITRATE,
+        FPS,
+        NONE
     };
 
     QWidget     * _tab;
@@ -48,8 +56,8 @@ class ReceivedBitrateDisplay : public QObject
     StatsLineChart * _chart_bitrate, * _chart_fps;
     StatsLineChartView* _chart_view_bitrate, * _chart_view_fps;
 
-    QMap<StatKey, std::tuple<QString, QLineSeries*>> _map;
-    QMap<QString, QVector<QLineSeries*>> _path_keys;
+    using StatMap = QMap<StatKey, std::tuple<QString, QLineSeries*, ChartKey>>;
+    QMap<QString, StatMap> _path_keys;
 
     void create_legend();
     StatsLineChart * create_chart();
@@ -57,16 +65,20 @@ class ReceivedBitrateDisplay : public QObject
     void create_serie(const fs::path&p, StatKey key);
 
     template<typename T>
-    void add_point(StatKey key, const T& point)
+    void add_point(const QString& path, StatKey key, const T& point)
     {
-        auto s = std::get<StatsKeyProperty::SERIE>(_map[key]);
+        auto map = _path_keys[path];
+        auto s = std::get<StatsKeyProperty::SERIE>(map[key]);
         *s << point;
     }
 
-    inline void add_serie(StatKey key, QChart* chart)
+    inline void add_serie(const QString& path, StatKey key, QChart* chart)
     {
-        chart->addSeries(std::get<StatsKeyProperty::SERIE>(_map[key]));
+        auto map = _path_keys[path];
+        chart->addSeries(std::get<StatsKeyProperty::SERIE>(map[key]));
     }
+
+    void init_map(StatMap& map, bool signal = true);
 
 public:
     ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend);

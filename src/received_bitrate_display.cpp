@@ -31,24 +31,6 @@ StatsLineChartView * ReceivedBitrateDisplay::create_chart_view(QChart* chart)
 ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend)
     : _tab(tab), _legend(legend)
 {
-    /*_map[StatKey::LINK] = std::make_tuple("link", QColorConstants::Black, nullptr);
-    _map[StatKey::BITRATE] = std::make_tuple("bitrate", QColorConstants::Red, nullptr);
-    _map[StatKey::FPS] = std::make_tuple("fps", QColorConstants::Red, nullptr);
-    _map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", QColorConstants::DarkBlue, nullptr);
-    _map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", QColorConstants::DarkGreen, nullptr);
-    _map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", QColorConstants::Magenta, nullptr);
-    _map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", QColorConstants::DarkYellow, nullptr);
-    _map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", QColorConstants::Green, nullptr);*/
-
-    _map[StatKey::LINK] = std::make_tuple("link", nullptr);
-    _map[StatKey::BITRATE] = std::make_tuple("bitrate", nullptr);
-    _map[StatKey::FPS] = std::make_tuple("fps", nullptr);
-    _map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", nullptr);
-    _map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", nullptr);
-    _map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", nullptr);
-    _map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", nullptr);
-    _map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", nullptr);
-
     create_legend();
 
     _chart_bitrate = create_chart();
@@ -64,39 +46,57 @@ ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout
     _tab->grabGesture(Qt::PinchGesture);
 }
 
+void ReceivedBitrateDisplay::init_map(StatMap& map, bool signal)
+{
+    map[StatKey::LINK] = std::make_tuple("link", nullptr, ChartKey::BITRATE);
+    map[StatKey::BITRATE] = std::make_tuple("bitrate", nullptr, ChartKey::BITRATE);
+    map[StatKey::FPS] = std::make_tuple("fps", nullptr, ChartKey::FPS);
+    map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", nullptr, ChartKey::NONE);
+    map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", nullptr, ChartKey::NONE);
+    map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", nullptr, ChartKey::NONE);
+    map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", nullptr, ChartKey::NONE);
+    map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", nullptr, ChartKey::BITRATE);
+
+    if(signal) {
+        connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
+            StatKey key = static_cast<StatKey>(item->data(1).toUInt());
+
+            auto line = std::get<StatsKeyProperty::SERIE>(map[key]);
+            if(line == nullptr) return;
+
+            if(item->checkState()) line->show();
+            else line->hide();
+        });
+    }
+}
+
 void ReceivedBitrateDisplay::create_legend()
 {
-    for(auto it = _map.cbegin(); it != _map.cend(); ++it) {
+    StatMap map;
+    init_map(map, false);
+
+    for(auto it = map.cbegin(); it != map.cend(); ++it) {
         QListWidgetItem * item = new QListWidgetItem(_legend);
         item->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
         item->setCheckState(Qt::Checked);
-        // item->setForeground(QBrush(std::get<StatsKeyProperty::COLOR>(it.value())));
         item->setText(std::get<StatsKeyProperty::NAME>(it.value()));
         item->setData(1, static_cast<uint8_t>(it.key()));
     }
-
-    connect(_legend, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) -> void {
-        StatKey key = static_cast<StatKey>(item->data(1).toUInt());
-
-        auto line = std::get<StatsKeyProperty::SERIE>(_map[key]);
-        if(line == nullptr) return;
-
-        if(item->checkState()) line->show();
-        else line->hide();
-    });
 }
 
 void ReceivedBitrateDisplay::create_serie(const fs::path&p, StatKey key)
 {
     auto serie = new QLineSeries;
-    // serie->setColor(std::get<StatsKeyProperty::COLOR>(_map[key]));
 
     QString name;
     QTextStream stream(&name);
 
     std::stringstream exp_name(p.filename().string());
 
-    stream << std::get<StatsKeyProperty::NAME>(_map[key]) << " "
+    StatMap& map = _path_keys[p.c_str()];
+    if(map.empty()) init_map(map);
+
+    stream << std::get<StatsKeyProperty::NAME>(map[key]) << " "
            << "(";
 
     for(int i = 0; i < 3; ++i) {
@@ -111,9 +111,7 @@ void ReceivedBitrateDisplay::create_serie(const fs::path&p, StatKey key)
     stream << ")";
 
     serie->setName(name);
-    std::get<StatsKeyProperty::SERIE>(_map[key]) = serie;
-
-    _path_keys[p.c_str()].push_back(serie);
+    std::get<StatsKeyProperty::SERIE>(map[key]) = serie;
 }
 
 // bitrate.csv : time, bitrate, link, fps, frame_dropped, frame_decoded, frame_keydecoded, frame_rendered
@@ -133,14 +131,14 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
 
         QPoint p_bitrate(time, bitrate), p_fps(time, fps), p_link(time, link);
 
-        add_point(StatKey::BITRATE, p_bitrate);
-        add_point(StatKey::LINK, p_link);
-        add_point(StatKey::FPS, p_fps);
+        add_point(p.c_str(), StatKey::BITRATE, p_bitrate);
+        add_point(p.c_str(), StatKey::LINK, p_link);
+        add_point(p.c_str(), StatKey::FPS, p_fps);
     }
 
-    add_serie(StatKey::BITRATE, _chart_bitrate);
-    add_serie(StatKey::LINK, _chart_bitrate);
-    add_serie(StatKey::FPS, _chart_fps);
+    add_serie(p.c_str(), StatKey::BITRATE, _chart_bitrate);
+    add_serie(p.c_str(), StatKey::LINK, _chart_bitrate);
+    add_serie(p.c_str(), StatKey::FPS, _chart_fps);
 
     _chart_bitrate->createDefaultAxes();
     _chart_fps->createDefaultAxes();
@@ -148,14 +146,24 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
 
 void ReceivedBitrateDisplay::unload(const fs::path& path)
 {
-    auto vec = _path_keys[path.c_str()];
+    auto map = _path_keys[path.c_str()];
 
-    for(auto s : vec) {
-        _chart_bitrate->removeSeries(s);
-        _chart_fps->removeSeries(s);
+    for(auto& it : map) {
+        auto s = std::get<StatsKeyProperty::SERIE>(it);
+        auto chart = std::get<StatsKeyProperty::CHART>(it);
+
+        switch(chart) {
+        case ChartKey::BITRATE:
+            _chart_bitrate->removeSeries(s);
+            break;
+        case ChartKey::FPS:
+            _chart_fps->removeSeries(s);
+            break;
+        case ChartKey::NONE: break;
+        }
 
         delete s;
-    }
 
-    _path_keys[path.c_str()] = QVector<QLineSeries*>{};
+        std::get<StatsKeyProperty::SERIE>(it) = nullptr;
+    }
 }
