@@ -10,6 +10,7 @@ qt_add_executable( ${exe}
     stats_line_chart.h stats_line_chart.cpp
     medooze_display.h medooze_display.cpp
     qlog_display.h qlog_display.cpp
+    display_base.h display_base.cpp
     )
 
 target_link_libraries( ${exe} PUBLIC
