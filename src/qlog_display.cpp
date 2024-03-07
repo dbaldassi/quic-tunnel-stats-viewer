@@ -16,7 +16,7 @@
 using json = nlohmann::json;
 
 QlogDisplay::QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info_widget)
-    : DisplayBase(tab, legend), _info_widget(info_widget)
+    : DisplayBase(tab, legend, info_widget)
 {
     _chart_bitrate = create_chart();
     _chart_view_bitrate = create_chart_view(_chart_bitrate);
@@ -49,14 +49,38 @@ void QlogDisplay::init_map(StatMap& map, bool signal)
     }
 }
 
+void QlogDisplay::add_info(const fs::path& path, const Info& info)
+{
+    QTreeWidgetItem * item = new QTreeWidgetItem(_info);
+    item->setText(0, path.parent_path().filename().c_str());
+
+    QTreeWidgetItem * loss = new QTreeWidgetItem(item);
+    loss->setText(0, "Lost");
+    loss->setText(1, QString::number(info.lost));
+
+    QTreeWidgetItem * sent = new QTreeWidgetItem(item);
+    sent->setText(0, "Sent");
+    sent->setText(1, QString::number(info.sent));
+
+    QTreeWidgetItem * rtt = new QTreeWidgetItem(item);
+    rtt->setText(0, "RTT mean");
+    rtt->setText(1, QString::number(info.mean_rtt));
+
+    QTreeWidgetItem * variance = new QTreeWidgetItem(item);
+    variance->setText(0, "RTT variance");
+    variance->setText(1, QString::number(info.variance_rtt));
+}
+
 void QlogDisplay::parse_mvfst(const fs::path& path)
 {
     std::ifstream qlog_file(path);
     auto qlog_data = json::parse(qlog_file);
 
     int64_t time_0 = -1;
+    uint64_t sum = 0;
 
-    Info info{0,0};
+    Info info{};
+    memset(&info, 0, sizeof(info));
 
     fs::path key = path.parent_path();
 
@@ -84,9 +108,14 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
                     int64_t time = event["time"].get<int64_t>() - time_0;
                     auto data = event["data"];
 
-                    QPointF p_rtt{time/1000000.f, data["latest_rtt"].get<float>()};
+                    float rtt = data["latest_rtt"].get<float>();
+                    QPointF p_rtt{time/1000000.f, rtt};
                     add_point(key.c_str(), StatKey::RTT, p_rtt);
 
+                    info.mean_rtt += rtt;
+                    info.variance_rtt += (rtt * rtt);
+
+                    ++sum;
                 } catch(...) {}
             }
             else if(name == "loss:packets_lost") {
@@ -98,16 +127,10 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
         }
     }
 
-    QTreeWidgetItem * item = new QTreeWidgetItem(_info_widget);
-    item->setText(0, path.parent_path().filename().c_str());
+    info.mean_rtt /= sum;
+    info.variance_rtt = (info.variance_rtt / sum) - (info.mean_rtt * info.mean_rtt);
 
-    QTreeWidgetItem * loss = new QTreeWidgetItem(item);
-    loss->setText(0, "Lost");
-    loss->setText(1, QString::number(info.lost));
-
-    QTreeWidgetItem * sent = new QTreeWidgetItem(item);
-    sent->setText(0, "Sent");
-    sent->setText(1, QString::number(info.sent));
+    add_info(path, info);
 }
 
 void QlogDisplay::parse_quicgo(const fs::path& path)
@@ -115,10 +138,11 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
     std::ifstream ifs(path);
     std::string line;
 
-    Info info{0,0};
+    Info info{};
+    uint64_t sum = 0;
+    memset(&info, 0, sizeof(info));
 
     fs::path key = path.parent_path();
-    std::cout << key << "\n";
 
     while(std::getline(ifs, line)) {
         auto pos = line.find("{");
@@ -142,8 +166,22 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
                 }
 
                 if(data.contains("latest_rtt")) {
-                    QPointF p_rtt{time, data["latest_rtt"].get<float>()};
+                    float rtt = data["latest_rtt"].get<float>();
+                    QPointF p_rtt{time, rtt};
                     add_point(key.c_str(), StatKey::RTT, p_rtt);
+                    info.mean_rtt += rtt;
+                    info.variance_rtt += (rtt * rtt);
+
+                    ++sum;
+                }
+                else if(data.contains("smoothed_rtt")) {
+                    float rtt = data["smoothed_rtt"].get<float>();
+                    QPointF p_rtt{time, rtt};
+                    add_point(key.c_str(), StatKey::RTT, p_rtt);
+                    info.mean_rtt += rtt;
+                    info.variance_rtt += (rtt * rtt);
+
+                    ++sum;
                 }
             }
             else if(name == "transport:packet_lost") {
@@ -155,16 +193,10 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
         } catch(...) {}
     }
 
-    QTreeWidgetItem * item = new QTreeWidgetItem(_info_widget);
-    item->setText(0, path.parent_path().filename().c_str());
+    info.mean_rtt /= sum;
+    info.variance_rtt = (info.variance_rtt / sum) - (info.mean_rtt * info.mean_rtt);
 
-    QTreeWidgetItem * loss = new QTreeWidgetItem(item);
-    loss->setText(0, "Lost");
-    loss->setText(1, QString::number(info.lost));
-
-    QTreeWidgetItem * sent = new QTreeWidgetItem(item);
-    sent->setText(0, "Sent");
-    sent->setText(1, QString::number(info.sent));
+    add_info(path, info);
 }
 
 void QlogDisplay::load(const fs::path& p)

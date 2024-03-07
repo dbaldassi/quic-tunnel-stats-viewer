@@ -2,14 +2,15 @@
 #include <QListWidget>
 #include <QLineSeries>
 #include <QVBoxLayout>
+#include <QTreeWidgetItem>
 
 #include "medooze_display.h"
 
 #include "csv_reader.h"
 #include "stats_line_chart.h"
 
-MedoozeDisplay::MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend)
-    : DisplayBase(tab, legend)
+MedoozeDisplay::MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info)
+    : DisplayBase(tab, legend, info)
 {
     _chart_bitrate = create_chart();
     _chart_view_bitrate = create_chart_view(_chart_bitrate);
@@ -44,6 +45,7 @@ void MedoozeDisplay::init_map(StatMap& map, bool signal)
     map[StatKey::MEDIA] = std::make_tuple("Media", nullptr, _chart_bitrate);
     map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_rtt);
     map[StatKey::MINRTT] = std::make_tuple("Min rtt", nullptr, _chart_rtt);
+    map[StatKey::TOTAL] = std::make_tuple("Total", nullptr, _chart_bitrate);
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
@@ -56,6 +58,36 @@ void MedoozeDisplay::init_map(StatMap& map, bool signal)
             else line->hide();
         });
     }
+}
+
+void MedoozeDisplay::update_info(Info::Stats& s, double value)
+{
+    ++s.n;
+    s.mean += value;
+    s.variance += (value * value);
+}
+
+void MedoozeDisplay::process_info(QTreeWidgetItem * root, Info::Stats& s, const QString& name)
+{
+    s.mean /= s.n;
+    s.variance = (s.variance / s.n) - (s.mean * s.mean);
+    s.var_coeff = std::sqrt(s.variance) / s.mean;
+
+    QTreeWidgetItem * item = new QTreeWidgetItem(root);
+    item->setText(0, name);
+
+    QTreeWidgetItem * mean_item = new QTreeWidgetItem(item);
+    mean_item->setText(0, "mean");
+    mean_item->setText(1, QString::number(s.mean));
+
+    QTreeWidgetItem * variance_item = new QTreeWidgetItem(item);
+    variance_item->setText(0, "variance");
+    variance_item->setText(1, QString::number(s.variance));
+
+    QTreeWidgetItem * coeff_var_item = new QTreeWidgetItem(item);
+    coeff_var_item->setText(0, "variation coeff");
+    coeff_var_item->setText(1, QString::number(s.var_coeff));
+
 }
 
 void MedoozeDisplay::load(const fs::path& p)
@@ -76,10 +108,13 @@ void MedoozeDisplay::load(const fs::path& p)
     create_serie(p, StatKey::PROBING);
     create_serie(p, StatKey::RTT);
     create_serie(p, StatKey::MINRTT);
+    create_serie(p, StatKey::TOTAL);
 
     bool start = true;
-    QPoint p_media, p_rtx, p_probing;
+    QPoint p_media, p_rtx, p_probing, p_total;
     QPointF p_rtt, p_minrtt;
+
+    Info info;
 
     for(auto &it : MedoozeReader(path)) {
         const auto& [fb_ts, twcc_num, fb_num, packet_size, sent_time, recv_ts, delta_sent, delta_recv, delta,
@@ -92,6 +127,15 @@ void MedoozeDisplay::load(const fs::path& p)
                 add_point(p.c_str(), StatKey::MEDIA, p_media);
                 add_point(p.c_str(), StatKey::RTX, p_rtx);
                 add_point(p.c_str(), StatKey::PROBING, p_probing);
+
+                p_total.setX(p_media.x());
+                p_total.setY(p_media.y() + p_rtx.y() + p_probing.y());
+                add_point(p.c_str(), StatKey::TOTAL, p_total);
+
+                update_info(info.rtx, p_rtx.y());
+                update_info(info.probing, p_probing.y());
+                update_info(info.media, p_media.y());
+                update_info(info.total, p_total.y());
             }
 
             start = false;
@@ -117,12 +161,23 @@ void MedoozeDisplay::load(const fs::path& p)
 
         add_point(p.c_str(), StatKey::RTT, p_rtt);
         add_point(p.c_str(), StatKey::MINRTT, p_minrtt);
+
+        update_info(info.rtt, p_rtt.y());
     }
+
+    QTreeWidgetItem * item = new QTreeWidgetItem(_info);
+    item->setText(0, path.parent_path().filename().c_str());
+
+    process_info(item, info.media, "Media");
+    process_info(item, info.rtx, "Rtx");
+    process_info(item, info.probing, "Probing");
+    process_info(item, info.total, "Total");
+    process_info(item, info.rtt, "Rtt");
 
     add_serie(p.c_str(), StatKey::MEDIA);
     add_serie(p.c_str(), StatKey::RTX);
     add_serie(p.c_str(), StatKey::PROBING);
-
+    add_serie(p.c_str(), StatKey::TOTAL);
     add_serie(p.c_str(), StatKey::RTT);
     add_serie(p.c_str(), StatKey::MINRTT);
 

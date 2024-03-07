@@ -1,7 +1,6 @@
 #include "main_window.h"
 #include "ui_main_window.h"
 
-#include <iostream>
 #include <filesystem>
 
 #include <QStack>
@@ -14,8 +13,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    _recv_display = std::make_unique<ReceivedBitrateDisplay>(ui->recv_tab, ui->recv_chart_layout, ui->legend_recv);
-    _medooze_display = std::make_unique<MedoozeDisplay>(ui->medooze_tab, ui->medooze_chart_layout, ui->legend_medooze);
+    _recv_display = std::make_unique<ReceivedBitrateDisplay>(ui->recv_tab, ui->recv_chart_layout, ui->legend_recv, ui->received_info);
+    _medooze_display = std::make_unique<MedoozeDisplay>(ui->medooze_tab, ui->medooze_chart_layout, ui->legend_medooze, ui->medooze_info);
     _qlog_display = std::make_unique<QlogDisplay>(ui->qlog_tab, ui->qlog_chart_layout, ui->legend_qlog, ui->qlog_info);
 }
 

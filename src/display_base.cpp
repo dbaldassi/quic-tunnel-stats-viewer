@@ -3,12 +3,17 @@
 
 #include <QTabWidget>
 #include <QListWidget>
+#include <QTreeWidget>
+#include <QHeaderView>
 
-DisplayBase::DisplayBase(QWidget* tab, QListWidget* legend)
-    : _tab(tab), _legend(legend)
+DisplayBase::DisplayBase(QWidget* tab, QListWidget* legend, QTreeWidget* info)
+    : _tab(tab), _legend(legend), _info(info)
 {
     _tab->grabGesture(Qt::PanGesture);
     _tab->grabGesture(Qt::PinchGesture);
+
+    info->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    info->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
 }
 
 StatsLineChart * DisplayBase::create_chart()
@@ -82,10 +87,18 @@ void DisplayBase::unload(const fs::path& path)
         auto s = std::get<StatsKeyProperty::SERIE>(it);
         auto* chart = std::get<StatsKeyProperty::CHART>(it);
 
-        if(chart) chart->removeSeries(s);
-
-        delete s;
+        if(chart && s) {
+            chart->removeSeries(s);
+            delete s;
+        }
 
         std::get<StatsKeyProperty::SERIE>(it) = nullptr;
+    }
+
+    auto item = _info->findItems(path.filename().c_str(), Qt::MatchExactly);
+
+    for(auto* it: item) {
+        _info->removeItemWidget(it, 0);
+        delete it;
     }
 }

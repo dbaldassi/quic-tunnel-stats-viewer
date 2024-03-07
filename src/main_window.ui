@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1031</width>
-    <height>662</height>
+    <width>1813</width>
+    <height>1000</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -47,7 +47,7 @@
       <item>
        <widget class="QTabWidget" name="tabWidget">
         <property name="currentIndex">
-         <number>0</number>
+         <number>1</number>
         </property>
         <widget class="QWidget" name="recv_tab">
          <attribute name="title">
@@ -58,7 +58,31 @@
            <layout class="QVBoxLayout" name="recv_chart_layout"/>
           </item>
           <item>
-           <widget class="QListWidget" name="legend_recv"/>
+           <layout class="QVBoxLayout" name="verticalLayout_2" stretch="1,1">
+            <item>
+             <widget class="QListWidget" name="legend_recv"/>
+            </item>
+            <item>
+             <widget class="QTreeWidget" name="received_info">
+              <property name="columnCount">
+               <number>2</number>
+              </property>
+              <attribute name="headerVisible">
+               <bool>false</bool>
+              </attribute>
+              <column>
+               <property name="text">
+                <string notr="true">1</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string notr="true">2</string>
+               </property>
+              </column>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>
@@ -77,10 +101,19 @@
             </item>
             <item>
              <widget class="QTreeWidget" name="qlog_info">
+              <property name="headerHidden">
+               <bool>true</bool>
+              </property>
               <property name="columnCount">
                <number>2</number>
               </property>
               <attribute name="headerVisible">
+               <bool>false</bool>
+              </attribute>
+              <attribute name="headerCascadingSectionResizes">
+               <bool>true</bool>
+              </attribute>
+              <attribute name="headerStretchLastSection">
                <bool>false</bool>
               </attribute>
               <column>
@@ -108,7 +141,31 @@
            <layout class="QVBoxLayout" name="medooze_chart_layout"/>
           </item>
           <item>
-           <widget class="QListWidget" name="legend_medooze"/>
+           <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,1">
+            <item>
+             <widget class="QListWidget" name="legend_medooze"/>
+            </item>
+            <item>
+             <widget class="QTreeWidget" name="medooze_info">
+              <property name="columnCount">
+               <number>2</number>
+              </property>
+              <attribute name="headerVisible">
+               <bool>false</bool>
+              </attribute>
+              <column>
+               <property name="text">
+                <string notr="true">1</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string notr="true">2</string>
+               </property>
+              </column>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>
@@ -129,7 +186,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1031</width>
+     <width>1813</width>
      <height>20</height>
     </rect>
    </property>

@@ -4,14 +4,13 @@
 #include <QListWidget>
 #include <QLineSeries>
 #include <QVBoxLayout>
+#include <QTreeWidgetItem>
 
 #include "csv_reader.h"
 #include "stats_line_chart.h"
 
-
-
-ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend)
-    : DisplayBase(tab, legend)
+ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info)
+    : DisplayBase(tab, legend, info)
 {
     _chart_bitrate = create_chart();
     _chart_view_bitrate = create_chart_view(_chart_bitrate);
@@ -61,6 +60,8 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
     create_serie(p, StatKey::LINK);
     create_serie(p, StatKey::FPS);
 
+    uint64_t sum = 0;
+
     for(auto &it : BitrateReader(path)) {
         const auto& [time, bitrate, link, fps, frame_dropped, frame_decoded, frame_key_decoded, frame_rendered] = it;
 
@@ -69,7 +70,38 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
         add_point(p.c_str(), StatKey::BITRATE, p_bitrate);
         add_point(p.c_str(), StatKey::LINK, p_link);
         add_point(p.c_str(), StatKey::FPS, p_fps);
+
+        _infos_array[StatKey::BITRATE].mean += bitrate;
+        _infos_array[StatKey::BITRATE].variance += (bitrate * bitrate);
+        _infos_array[StatKey::FPS].mean += fps;
+        _infos_array[StatKey::FPS].variance += (fps * fps);
+
+        ++sum;
     }
+
+    _infos_array[StatKey::BITRATE].mean /= sum;
+    _infos_array[StatKey::BITRATE].variance = (_infos_array[StatKey::BITRATE].variance / sum) - ( _infos_array[StatKey::BITRATE].mean *  _infos_array[StatKey::BITRATE].mean);
+    _infos_array[StatKey::FPS].mean /= sum;
+    _infos_array[StatKey::FPS].variance = (_infos_array[StatKey::FPS].variance / sum) - ( _infos_array[StatKey::FPS].mean *  _infos_array[StatKey::FPS].mean);
+
+    QTreeWidgetItem * item = new QTreeWidgetItem(_info);
+    item->setText(0, path.parent_path().filename().c_str());
+
+    QTreeWidgetItem * bitrate_mean = new QTreeWidgetItem(item);
+    bitrate_mean->setText(0, "RTC Bitrate mean");
+    bitrate_mean->setText(1, QString::number(_infos_array[StatKey::BITRATE].mean));
+
+    QTreeWidgetItem * bitrate_variance = new QTreeWidgetItem(item);
+    bitrate_variance->setText(0, "RTC Bitrate variance");
+    bitrate_variance->setText(1, QString::number(_infos_array[StatKey::BITRATE].variance));
+
+    QTreeWidgetItem * fps_mean = new QTreeWidgetItem(item);
+    fps_mean->setText(0, "FPS mean");
+    fps_mean->setText(1, QString::number(_infos_array[StatKey::FPS].mean));
+
+    QTreeWidgetItem * fps_variance= new QTreeWidgetItem(item);
+    fps_variance->setText(0, "FPS variance");
+    fps_variance->setText(1, QString::number(_infos_array[StatKey::FPS].variance));
 
     add_serie(p.c_str(), StatKey::BITRATE);
     add_serie(p.c_str(), StatKey::LINK);

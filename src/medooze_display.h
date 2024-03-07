@@ -20,7 +20,8 @@ class QListWidget;
 class StatsLineChart;
 class StatsLineChartView;
 class QVBoxLayout;
-
+class QTreeWidget;
+class QTreeWidgetItem;
 
 class MedoozeDisplay : public QObject, public DisplayBase
 {
@@ -50,15 +51,36 @@ class MedoozeDisplay : public QObject, public DisplayBase
         MEDIA,
         LOSS,
         MINRTT,
-        FBDELAY
+        FBDELAY,
+        TOTAL
+    };
+
+    struct Info
+    {
+        struct Stats
+        {
+            double mean = 0.;
+            double variance = 0.;
+            double var_coeff = 0.;
+            uint64_t n = 0;
+        };
+
+        Stats rtt;
+        Stats target;
+        Stats media;
+        Stats rtx;
+        Stats probing;
+        Stats total;
     };
 
     StatsLineChart * _chart_bitrate, * _chart_rtt;
     StatsLineChartView* _chart_view_bitrate, * _chart_view_rtt;
 
-    void init_map(StatMap& map, bool signal = true);
+    void init_map(StatMap& map, bool signal = true) override;
+    void update_info(Info::Stats& s, double value);
+    void process_info(QTreeWidgetItem * root, Info::Stats& s, const QString& name);
 public:
-    MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend);
+    MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info);
     ~MedoozeDisplay() = default;
 
     void load(const fs::path& path) override;

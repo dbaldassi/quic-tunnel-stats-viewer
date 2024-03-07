@@ -15,6 +15,7 @@ class QListWidget;
 class QLineSeries;
 class StatsLineChart;
 class StatsLineChartView;
+class QTreeWidget;
 
 class DisplayBase
 {
@@ -25,12 +26,14 @@ protected:
 
     QWidget     * _tab;
     QListWidget * _legend;
+    QTreeWidget * _info;
 
     enum StatsKeyProperty : uint8_t
     {
         NAME,
         SERIE,
-        CHART
+        CHART,
+        NUM_KEY
     };
 
     template<typename T>
@@ -58,7 +61,7 @@ protected:
     virtual void init_map(StatMap& map, bool signal = true) = 0;
 
 public:
-    DisplayBase(QWidget* tab, QListWidget* legend);
+    DisplayBase(QWidget* tab, QListWidget* legend, QTreeWidget* info);
 
     virtual void load(const fs::path& path) = 0;
     virtual void unload(const fs::path& path);

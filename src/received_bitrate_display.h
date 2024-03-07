@@ -16,6 +16,7 @@ class QListWidget;
 class StatsLineChart;
 class StatsLineChartView;
 class QVBoxLayout;
+class QTreeWidget;
 
 namespace fs = std::filesystem;
 
@@ -35,16 +36,25 @@ class ReceivedBitrateDisplay : public QObject, public DisplayBase
         FRAME_RENDERED,
 
         // quic.csv
-        QUIC_SENT
+        QUIC_SENT,
+
+        NUM_KEY
+    };
+
+    struct Info
+    {
+        double mean = 0.;
+        double variance = 0.;
     };
 
     StatsLineChart * _chart_bitrate, * _chart_fps;
     StatsLineChartView* _chart_view_bitrate, * _chart_view_fps;
+    std::array<Info, StatKey::NUM_KEY> _infos_array;
 
     void init_map(StatMap& map, bool signal = true) override;
 
 public:
-    ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend);
+    ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info_widget);
     ~ReceivedBitrateDisplay() = default;
 
     // load bitrate.csv, quic.csv
