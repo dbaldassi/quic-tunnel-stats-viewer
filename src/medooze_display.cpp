@@ -26,16 +26,6 @@ MedoozeDisplay::MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* l
 
 void MedoozeDisplay::init_map(StatMap& map, bool signal)
 {
-    // _map[StatKey::FEEDBACK_TS] = std::make_tuple("link", QColorConstants::Black, nullptr);
-    // _map[StatKey::TWCC_NUM] = std::make_tuple("bitrate", QColorConstants::Red, nullptr);
-    // _map[StatKey::FEEDBACK_NUM] = std::make_tuple("fps", QColorConstants::Red, nullptr);
-    // _map[StatKey::PACKET_SIZE] = std::make_tuple("frame dropped", QColorConstants::DarkBlue, nullptr);
-    // _map[StatKey::SENT_TIME] = std::make_tuple("frame decoded", QColorConstants::DarkGreen, nullptr);
-    // _map[StatKey::RECEIVED_TS] = std::make_tuple("frame key decoded", QColorConstants::Magenta, nullptr);
-    // _map[StatKey::DELTA_SENT] = std::make_tuple("frame rendered", QColorConstants::DarkYellow, nullptr);
-    // _map[StatKey::DELTA_RECV] = std::make_tuple("quic sent bitrate", QColorConstants::Green, nullptr);
-    // _map[StatKey::DELTA] = std::make_tuple("quic sent bitrate", QColorConstants::Green, nullptr);
-    // _map[StatKey::FLAG] = std::make_tuple("quic sent bitrate", QColorConstants::Green, nullptr);
     map[StatKey::BWE] = std::make_tuple("Bwe", nullptr, _chart_bitrate);
     map[StatKey::TARGET] = std::make_tuple("Target", nullptr, _chart_bitrate);
     map[StatKey::AVAILABLE_BITRATE] = std::make_tuple("Available bitrate", nullptr, _chart_bitrate);
@@ -87,7 +77,6 @@ void MedoozeDisplay::process_info(QTreeWidgetItem * root, Info::Stats& s, const 
     QTreeWidgetItem * coeff_var_item = new QTreeWidgetItem(item);
     coeff_var_item->setText(0, "variation coeff");
     coeff_var_item->setText(1, QString::number(s.var_coeff));
-
 }
 
 void MedoozeDisplay::load(const fs::path& p)
