@@ -81,22 +81,14 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
         ++sum;
     }
 
-    for(auto& it : QuicSentReader(p / "quic.csv")) {
-        const auto& [time, bitrate ] = it;
-        QPointF p_bitrate{time, bitrate * 8. / 1000.};
-
-        add_point(p.c_str(), StatKey::QUIC_SENT, p_bitrate);
-
-        _infos_array[StatKey::QUIC_SENT].mean += p_bitrate.y();
-        _infos_array[StatKey::QUIC_SENT].variance += (p_bitrate.y() * p_bitrate.y());
-    }
-
     _infos_array[StatKey::BITRATE].mean /= sum;
     _infos_array[StatKey::BITRATE].variance = (_infos_array[StatKey::BITRATE].variance / sum) - ( _infos_array[StatKey::BITRATE].mean *  _infos_array[StatKey::BITRATE].mean);
     _infos_array[StatKey::FPS].mean /= sum;
     _infos_array[StatKey::FPS].variance = (_infos_array[StatKey::FPS].variance / sum) - ( _infos_array[StatKey::FPS].mean *  _infos_array[StatKey::FPS].mean);
-    _infos_array[StatKey::QUIC_SENT].mean /= sum;
-    _infos_array[StatKey::QUIC_SENT].variance = (_infos_array[StatKey::QUIC_SENT].variance / sum) - ( _infos_array[StatKey::QUIC_SENT].mean *  _infos_array[StatKey::QUIC_SENT].mean);
+
+    add_serie(p.c_str(), StatKey::BITRATE);
+    add_serie(p.c_str(), StatKey::LINK);
+    add_serie(p.c_str(), StatKey::FPS);
 
     QTreeWidgetItem * item = new QTreeWidgetItem(_info);
     item->setText(0, path.parent_path().filename().c_str());
@@ -117,18 +109,32 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
     fps_variance->setText(0, "FPS variance");
     fps_variance->setText(1, QString::number(_infos_array[StatKey::FPS].variance));
 
-    QTreeWidgetItem * quic_mean = new QTreeWidgetItem(item);
-    quic_mean->setText(0, "QUIC sent mean");
-    quic_mean->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].mean));
+    fs::path quiccsv = p / "quic.csv";
 
-    QTreeWidgetItem * quic_variance = new QTreeWidgetItem(item);
-    quic_variance->setText(0, "QUIC sent variance");
-    quic_variance->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].variance));
+    if(fs::exists(p)) {
+        for(auto& it : QuicSentReader(p)) {
+            const auto& [time, bitrate ] = it;
+            QPointF p_bitrate{time, bitrate * 8. / 1000.};
 
-    add_serie(p.c_str(), StatKey::BITRATE);
-    add_serie(p.c_str(), StatKey::LINK);
-    add_serie(p.c_str(), StatKey::FPS);
-    add_serie(p.c_str(), StatKey::QUIC_SENT);
+            add_point(p.c_str(), StatKey::QUIC_SENT, p_bitrate);
+
+            _infos_array[StatKey::QUIC_SENT].mean += p_bitrate.y();
+            _infos_array[StatKey::QUIC_SENT].variance += (p_bitrate.y() * p_bitrate.y());
+        }
+
+        add_serie(p.c_str(), StatKey::QUIC_SENT);
+
+        _infos_array[StatKey::QUIC_SENT].mean /= sum;
+        _infos_array[StatKey::QUIC_SENT].variance = (_infos_array[StatKey::QUIC_SENT].variance / sum) - ( _infos_array[StatKey::QUIC_SENT].mean *  _infos_array[StatKey::QUIC_SENT].mean);
+
+        QTreeWidgetItem * quic_mean = new QTreeWidgetItem(item);
+        quic_mean->setText(0, "QUIC sent mean");
+        quic_mean->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].mean));
+
+        QTreeWidgetItem * quic_variance = new QTreeWidgetItem(item);
+        quic_variance->setText(0, "QUIC sent variance");
+        quic_variance->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].variance));
+    }
 
     _chart_bitrate->createDefaultAxes();
     _chart_fps->createDefaultAxes();

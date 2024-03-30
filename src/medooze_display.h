@@ -27,6 +27,7 @@ class MedoozeDisplay : public QObject, public DisplayBase
 {
     Q_OBJECT
 
+public:
     enum StatKey : uint8_t
     {
         // Medooze file
@@ -52,8 +53,11 @@ class MedoozeDisplay : public QObject, public DisplayBase
         LOSS,
         MINRTT,
         FBDELAY,
-        TOTAL
+        TOTAL,
+        RECEIVED_BITRATE
     };
+
+private:
 
     struct Info
     {
@@ -79,6 +83,10 @@ class MedoozeDisplay : public QObject, public DisplayBase
     void init_map(StatMap& map, bool signal = true) override;
     void update_info(Info::Stats& s, double value);
     void process_info(QTreeWidgetItem * root, Info::Stats& s, const QString& name);
+
+    void load_average(const fs::path& path);
+    void load_exp(const fs::path& path);
+
 public:
     MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info);
     ~MedoozeDisplay() = default;

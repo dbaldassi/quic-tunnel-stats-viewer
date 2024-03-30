@@ -23,5 +23,5 @@ target_link_libraries( ${exe} PUBLIC
   )
 
 set_target_properties( ${exe}
-  PROPERTIES CXX_STANDARD 20
+  PROPERTIES CXX_STANDARD 23
   )

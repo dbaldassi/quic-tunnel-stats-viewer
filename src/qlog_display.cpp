@@ -8,8 +8,8 @@
 #include <QTreeWidgetItem>
 
 #include "qlog_display.h"
-
 #include "stats_line_chart.h"
+#include "csv_reader.h"
 
 #include <nlohmann/json.hpp>
 
@@ -199,7 +199,7 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
     add_info(path, info);
 }
 
-void QlogDisplay::load(const fs::path& p)
+void QlogDisplay::load_exp(const fs::path& p)
 {
     fs::path path;
     for (auto const& dir_entry : std::filesystem::recursive_directory_iterator{p}) {
@@ -220,19 +220,19 @@ void QlogDisplay::load(const fs::path& p)
 
     auto impl = path.parent_path().filename().string();
 
-    if(impl.starts_with("mvfst")) {
+    if(path.filename().string().starts_with("mvfst") || impl.starts_with("mvfst")) {
         std::cout << "Parsing mvfst file : " << path << std::endl;
         parse_mvfst(path);
     }
-    else if(impl.starts_with("quicgo")) {
+    else if(path.filename().string().starts_with("quicgo") || impl.starts_with("quicgo")) {
         std::cout << "Parsing quicgo file : " << path << std::endl;
         parse_quicgo(path);
     }
-    else if(impl.starts_with("quiche")) {
+    else if(path.filename().string().starts_with("quiche") || impl.starts_with("quiche")) {
         std::cout << "Parsing quiche file : " << path << std::endl;
         parse_quicgo(path);
     }
-    else if(impl.starts_with("msquic")) {
+    else if(path.filename().string().starts_with("msquic") || impl.starts_with("msquic")) {
         std::cout << "Parsing msquic file : " << path << std::endl;
         parse_quicgo(path);
     }
@@ -243,4 +243,32 @@ void QlogDisplay::load(const fs::path& p)
 
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
+}
+
+void QlogDisplay::load_average(const fs::path& p)
+{
+    fs::path file = p / "qlog.csv";
+
+    using QlogReader = CsvReaderTypeRepeat<',', double, 2>;
+
+    create_serie(p, StatKey::RTT);
+
+    for(const auto& it : QlogReader(file)) {
+        const auto& [ts, rtt] = it;
+
+        QPointF point{ts, rtt / 1000.};
+
+        add_point(p.c_str(), StatKey::RTT, point);
+    }
+
+    add_serie(p.c_str(), StatKey::RTT);
+
+    _chart_bitrate->createDefaultAxes();
+    _chart_rtt->createDefaultAxes();
+}
+
+void QlogDisplay::load(const fs::path& p)
+{
+    if(p.filename().string() == "average") load_average(p);
+    else load_exp(p);
 }

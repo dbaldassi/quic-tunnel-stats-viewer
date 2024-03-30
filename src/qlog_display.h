@@ -49,6 +49,10 @@ class QlogDisplay : public QObject, public DisplayBase
     void add_info(const fs::path& path, const Info& info);
     void parse_mvfst(const fs::path& path);
     void parse_quicgo(const fs::path& path);
+
+    void load_average(const fs::path& path);
+    void load_exp(const fs::path& path);
+
 public:
     QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info_widget);
     ~QlogDisplay() = default;
