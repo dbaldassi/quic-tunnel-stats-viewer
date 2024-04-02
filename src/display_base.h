@@ -44,13 +44,19 @@ protected:
         *s << point;
     }
 
-    inline void add_serie(const QString& path, uint8_t key)
+    inline void add_serie(const QString& path, uint8_t key, QAbstractAxis* x_axis = nullptr, QAbstractAxis* y_axis = nullptr)
     {
         const auto& map = _path_keys[path];
         auto* serie = std::get<StatsKeyProperty::SERIE>(map[key]);
         auto* chart = std::get<StatsKeyProperty::CHART>(map[key]);
 
-        if(chart) chart->addSeries(serie);
+        if(chart) {
+            chart->addSeries(serie);
+            if(x_axis) {
+                serie->attachAxis(x_axis);
+                serie->attachAxis(y_axis);
+            }
+        }
     }
 
     void create_legend();

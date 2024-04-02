@@ -3,6 +3,7 @@
 #include <QLineSeries>
 #include <QVBoxLayout>
 #include <QTreeWidgetItem>
+#include <QValueAxis>
 
 #include "medooze_display.h"
 
@@ -28,12 +29,12 @@ void MedoozeDisplay::init_map(StatMap& map, bool signal)
 {
     map[StatKey::BWE] = std::make_tuple("Bwe", nullptr, _chart_bitrate);
     map[StatKey::TARGET] = std::make_tuple("Target", nullptr, _chart_bitrate);
-    map[StatKey::AVAILABLE_BITRATE] = std::make_tuple("Available bitrate", nullptr, _chart_bitrate);
+    // map[StatKey::AVAILABLE_BITRATE] = std::make_tuple("Available bitrate", nullptr, _chart_bitrate);
     map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt);
     map[StatKey::RTX] = std::make_tuple("RTX", nullptr, _chart_bitrate);
     map[StatKey::PROBING] = std::make_tuple("Probing", nullptr, _chart_bitrate);
     map[StatKey::MEDIA] = std::make_tuple("Media", nullptr, _chart_bitrate);
-    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_rtt);
+    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate);
     map[StatKey::MINRTT] = std::make_tuple("Min rtt", nullptr, _chart_rtt);
     map[StatKey::TOTAL] = std::make_tuple("Total", nullptr, _chart_bitrate);
     map[StatKey::RECEIVED_BITRATE] = std::make_tuple("Received bitrate", nullptr, _chart_bitrate);
@@ -52,35 +53,52 @@ void MedoozeDisplay::init_map(StatMap& map, bool signal)
     }
 }
 
-void MedoozeDisplay::update_info(Info::Stats& s, double value)
+void MedoozeDisplay::Info::Stats::process(QTreeWidgetItem* root)
 {
-    ++s.n;
-    s.mean += value;
-    s.variance += (value * value);
-}
-
-void MedoozeDisplay::process_info(QTreeWidgetItem * root, Info::Stats& s, const QString& name)
-{
-    s.mean /= s.n;
-    s.variance = (s.variance / s.n) - (s.mean * s.mean);
-    s.var_coeff = std::sqrt(s.variance) / s.mean;
+    mean /= n;
+    variance = (variance / n) - (mean * mean);
+    var_coeff = std::sqrt(variance) / mean;
 
     QTreeWidgetItem * item = new QTreeWidgetItem(root);
     item->setText(0, name);
 
     QTreeWidgetItem * mean_item = new QTreeWidgetItem(item);
     mean_item->setText(0, "mean");
-    mean_item->setText(1, QString::number(s.mean));
+    mean_item->setText(1, QString::number(mean));
 
     QTreeWidgetItem * variance_item = new QTreeWidgetItem(item);
     variance_item->setText(0, "variance");
-    variance_item->setText(1, QString::number(s.variance));
+    variance_item->setText(1, QString::number(variance));
 
     QTreeWidgetItem * coeff_var_item = new QTreeWidgetItem(item);
     coeff_var_item->setText(0, "variation coeff");
-    coeff_var_item->setText(1, QString::number(s.var_coeff));
+    coeff_var_item->setText(1, QString::number(var_coeff));
 }
 
+void MedoozeDisplay::Info::StatsLoss::process(QTreeWidgetItem* root)
+{
+    double percent = static_cast<double>(loss) * 100. / static_cast<double>(sent);
+
+    QTreeWidgetItem * item = new QTreeWidgetItem(root);
+    item->setText(0, name);
+
+    QTreeWidgetItem * loss_item = new QTreeWidgetItem(item);
+    loss_item->setText(0, "loss");
+    loss_item->setText(1, QString::number(loss));
+
+    QTreeWidgetItem * sent_item = new QTreeWidgetItem(item);
+    sent_item->setText(0, "sent");
+    sent_item->setText(1, QString::number(sent));
+
+    QTreeWidgetItem * percent_item = new QTreeWidgetItem(item);
+    percent_item->setText(0, "Percent");
+    percent_item->setText(1, QString::number(percent));
+}
+
+template<typename T>
+concept MedoozeStat = requires(T t) { t.update({}); };
+
+template<MedoozeStat Stat>
 struct Accu
 {
     int current_ts = -1;
@@ -88,6 +106,8 @@ struct Accu
     MedoozeDisplay::StatKey key;
     static constexpr int base = 1000000;
     static constexpr int window = 200000;
+
+    Stat* stats;
 
     double factor = base / window;
 
@@ -97,10 +117,9 @@ struct Accu
 
     uint64_t accumulated = 0;
 
-    Accu(MedoozeDisplay::StatKey k) : pt{0., 0.}
+    Accu(MedoozeDisplay::StatKey k,  Stat* in_stats = nullptr) : pt{0., 0.}, stats(in_stats)
     {
         key = k;
-
     }
 
     void accumulate(int time, int v)
@@ -112,12 +131,21 @@ struct Accu
 
         accumulated += v;
         points_window.emplace_back(time, v);
-        points.emplace_back(time/1000000., accumulated * factor / 1000.);
+
+        if(key == MedoozeDisplay::StatKey::LOSS) {
+            points.emplace_back(time/1000000., accumulated);
+            stats->update(v);
+        }
+        else {
+            points.emplace_back(time/1000000., accumulated * factor / 1000.);
+            stats->update(points.back().y());
+        }
     }
 
     void add_value(double time, double v)
     {
         points.emplace_back(time, v);
+        stats->update(v);
     }
 
     void add_value(int ts, double time, double v)
@@ -173,18 +201,20 @@ void MedoozeDisplay::load_exp(const fs::path& p)
     create_serie(p, StatKey::MINRTT);
     create_serie(p, StatKey::TARGET);
     create_serie(p, StatKey::TOTAL);
-    // create_serie(p, StatKey::RECEIVED_BITRATE);
+    create_serie(p, StatKey::RECEIVED_BITRATE);
+    create_serie(p, StatKey::LOSS);
 
     Info info;
 
-    QList<Accu> accu;
-    accu.emplace_back(StatKey::MEDIA);
-    accu.emplace_back(StatKey::RTX);
-    accu.emplace_back(StatKey::PROBING);
-    accu.emplace_back(StatKey::RTT);
-    accu.emplace_back(StatKey::MINRTT);
-    accu.emplace_back(StatKey::TARGET);
-    accu.emplace_back(StatKey::TOTAL);
+    auto accu_media = Accu<Info::Stats>(StatKey::MEDIA, &info.media);
+    auto accu_rtx = Accu<Info::Stats>(StatKey::RTX, &info.rtx);
+    auto accu_probing = Accu<Info::Stats>(StatKey::PROBING, &info.probing);
+    auto accu_rtt = Accu<Info::Stats>(StatKey::RTT, &info.rtt);
+    auto accu_minrtt = Accu<Info::Stats>(StatKey::MINRTT, &info.minrtt);
+    auto accu_target = Accu<Info::Stats>(StatKey::TARGET, &info.target);
+    auto accu_total = Accu<Info::Stats>(StatKey::TOTAL, &info.total);
+    auto accu_loss = Accu<Info::StatsLoss>(StatKey::LOSS, &info.loss);
+    auto accu_received = Accu<Info::Stats>(StatKey::RECEIVED_BITRATE, &info.received);
 
     for(auto &it : MedoozeReader(path)) {
         const auto& [fb_ts, twcc_num, fb_num, packet_size, sent_time, recv_ts, delta_sent, delta_recv, delta,
@@ -192,65 +222,50 @@ void MedoozeDisplay::load_exp(const fs::path& p)
 
         double timestamp = sent_time / 1000000.;
 
-        for(auto& acc : accu) {
-            switch(acc.key) {
-            case StatKey::MEDIA:
-                acc.accumulate(sent_time, ((rtx == 0 && probing == 0) ? packet_size * 8 : 0));
-                break;
-            case StatKey::RTX:
-                acc.accumulate(sent_time, ((rtx == 1 && probing == 0) ? packet_size * 8 : 0));
-                break;
-            case StatKey::PROBING:
-                acc.accumulate(sent_time, ((rtx == 0 && probing == 1) ? packet_size * 8 : 0));
-                break;
-            case StatKey::RTT:
-                acc.add_value(fb_ts, timestamp, rtt);
-                break;
-            case StatKey::MINRTT:
-                acc.add_value(fb_ts, timestamp, ((minrtt == 0 || rtt < minrtt) ? rtt : minrtt));
-                break;
-            case StatKey::TARGET:
-                acc.add_value(fb_ts, timestamp, target);
-                break;
-            case StatKey::TOTAL:
-                acc.accumulate(sent_time, packet_size * 8);
-                break;
-            default:
-                break;
-            }
-        }
-
-        /*update_info(info.media, point.y());
-        update_info(info.rtx, point.y());
-        update_info(info.probing, point.y());
-        update_info(info.total, point.y());
-        update_info(info.rtt, rtt);*/
-    }
-
-    for(auto& acc : accu) {
-        add_point(p.c_str(), acc.key, acc.get_points());
+        accu_media.accumulate(sent_time, ((rtx == 0 && probing == 0) ? packet_size * 8 : 0));
+        accu_rtx.accumulate(sent_time, ((rtx == 1 && probing == 0) ? packet_size * 8 : 0));
+        accu_probing.accumulate(sent_time, ((rtx == 0 && probing == 1) ? packet_size * 8 : 0));
+        accu_rtt.add_value(timestamp, rtt);
+        accu_minrtt.add_value(timestamp, ((minrtt == 0 || rtt < minrtt) ? rtt : minrtt));
+        accu_target.add_value(timestamp, target);
+        accu_total.accumulate(sent_time, packet_size * 8);
+        accu_loss.accumulate(sent_time, ((sent_time > 0 && recv_ts == 0) ? 1 : 0));
+        accu_received.accumulate(sent_time, ((sent_time > 0 && recv_ts == 0) ? 0 : packet_size * 8));
     }
 
     QTreeWidgetItem * item = new QTreeWidgetItem(_info);
     item->setText(0, path.parent_path().filename().c_str());
 
-    process_info(item, info.media, "Media");
-    process_info(item, info.rtx, "Rtx");
-    process_info(item, info.probing, "Probing");
-    process_info(item, info.total, "Total");
-    process_info(item, info.rtt, "Rtt");
-
-    add_serie(p.c_str(), StatKey::MEDIA);
-    add_serie(p.c_str(), StatKey::RTX);
-    add_serie(p.c_str(), StatKey::PROBING);
-    add_serie(p.c_str(), StatKey::TOTAL);
-    add_serie(p.c_str(), StatKey::RTT);
-    add_serie(p.c_str(), StatKey::MINRTT);
-    // add_serie(p.c_str(), StatKey::TARGET);
-    // add_serie(p.c_str(), StatKey::RECEIVED_BITRATE);
+    process(item, info.media, p.c_str(), StatKey::MEDIA, accu_media.get_points());
+    process(item, info.rtx, p.c_str(), StatKey::RTX, accu_rtx.get_points());
+    process(item, info.probing, p.c_str(), StatKey::PROBING, accu_probing.get_points());
+    process(item, info.total, p.c_str(), StatKey::TOTAL, accu_total.get_points());
+    process(item, info.rtt, p.c_str(), StatKey::RTT, accu_rtt.get_points());
+    process(item, info.minrtt, p.c_str(), StatKey::MINRTT, accu_minrtt.get_points());
+    process(item, info.loss, p.c_str(), StatKey::LOSS, accu_loss.get_points());
+    process(item, info.received, p.c_str(), StatKey::RECEIVED_BITRATE, accu_received.get_points());
 
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
+
+    auto loss_axis = new QValueAxis();
+
+    auto it = std::max_element(accu_loss.points.begin(), accu_loss.points.end(),
+                               [](const auto& p1, const auto& p2) { return p1.y() < p2.y();});
+
+    if(it != accu_loss.points.end()) {
+        auto max_loss = it->y();
+        loss_axis->setRange(0, max_loss * 2);
+    }
+
+    _chart_bitrate->addAxis(loss_axis, Qt::AlignRight);
+
+    const auto& map = _path_keys[p.c_str()];
+    auto* serie = std::get<StatsKeyProperty::SERIE>(map[StatKey::LOSS]);
+
+    auto axis = serie->attachedAxes();
+    serie->detachAxis(axis.back());
+    serie->attachAxis(loss_axis);
 }
 
 void MedoozeDisplay::load_average(const fs::path& p)
