@@ -27,18 +27,18 @@ MedoozeDisplay::MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* l
 
 void MedoozeDisplay::init_map(StatMap& map, bool signal)
 {
-    map[StatKey::BWE] = std::make_tuple("Bwe", nullptr, _chart_bitrate);
-    map[StatKey::TARGET] = std::make_tuple("Target", nullptr, _chart_bitrate);
+    map[StatKey::BWE] = std::make_tuple("Bwe", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::TARGET] = std::make_tuple("Target", nullptr, _chart_bitrate, ExpInfo{});
     // map[StatKey::AVAILABLE_BITRATE] = std::make_tuple("Available bitrate", nullptr, _chart_bitrate);
-    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt);
-    map[StatKey::RTX] = std::make_tuple("RTX", nullptr, _chart_bitrate);
-    map[StatKey::PROBING] = std::make_tuple("Probing", nullptr, _chart_bitrate);
-    map[StatKey::MEDIA] = std::make_tuple("Media", nullptr, _chart_bitrate);
-    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate);
-    map[StatKey::MINRTT] = std::make_tuple("Min rtt", nullptr, _chart_rtt);
-    map[StatKey::TOTAL] = std::make_tuple("Total", nullptr, _chart_bitrate);
-    map[StatKey::RECEIVED_BITRATE] = std::make_tuple("Received bitrate", nullptr, _chart_bitrate);
-    map[StatKey::FBDELAY] = std::make_tuple("Feedback delay", nullptr, _chart_rtt);
+    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{});
+    map[StatKey::RTX] = std::make_tuple("RTX", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::PROBING] = std::make_tuple("Probing", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::MEDIA] = std::make_tuple("Media", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::MINRTT] = std::make_tuple("Min rtt", nullptr, _chart_rtt, ExpInfo{});
+    map[StatKey::TOTAL] = std::make_tuple("Total", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::RECEIVED_BITRATE] = std::make_tuple("Received bitrate", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::FBDELAY] = std::make_tuple("Feedback delay", nullptr, _chart_rtt, ExpInfo{});
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
@@ -266,13 +266,15 @@ void MedoozeDisplay::load_exp(const fs::path& p)
     auto axis = serie->attachedAxes();
     serie->detachAxis(axis.back());
     serie->attachAxis(loss_axis);
+
+    emit on_loss_stats(p, info.loss.loss, info.loss.sent);
 }
 
 void MedoozeDisplay::load_average(const fs::path& p)
 {
     fs::path medooze_file = p / "medooze.csv";
 
-    using MedoozeReader = CsvReaderTypeRepeat<',', double, 9>;
+    using MedoozeReader = CsvReaderTypeRepeat<',', double, 10>;
 
     create_serie(p, StatKey::MEDIA);
     create_serie(p, StatKey::RTX);
@@ -286,57 +288,96 @@ void MedoozeDisplay::load_average(const fs::path& p)
 
     QPointF point;
 
+    Info info;
+
     for(auto &it : MedoozeReader(medooze_file)) {
-        const auto& [ts, media, rtx, probing, recv, fb_delay, target, minrtt, rtt] = it;
+        const auto& [ts, media, rtx, probing, recv, fb_delay, target, minrtt, rtt, loss] = it;
 
         double timestamp = ts / 1000000.;
-        // std::cout << ts << " " << timestamp << std::endl;
         point.setX(timestamp);
 
-        point.setY(media);
+        point.setY(media / 1000.);
         add_point(p.c_str(), StatKey::MEDIA, point);
+        info.media.update(media / 1000.);
 
-        point.setY(rtx);
+        point.setY(rtx / 1000.);
         add_point(p.c_str(), StatKey::RTX, point);
+        info.rtx.update(rtx / 1000.);
 
-        point.setY(probing);
+        point.setY(probing / 1000.);
         add_point(p.c_str(), StatKey::PROBING, point);
+        info.probing.update(probing / 1000.);
 
-        point.setY(media + rtx + probing);
+        point.setY((media + rtx + probing) / 1000.);
         add_point(p.c_str(), StatKey::TOTAL, point);
+        info.total.update(point.y());
 
-        point.setY(recv);
+        point.setY(recv/ 1000.);
         add_point(p.c_str(), StatKey::RECEIVED_BITRATE, point);
+        info.received.update(recv/ 1000.);
 
-        point.setY(target);
+        point.setY(target / 1000.);
         add_point(p.c_str(), StatKey::TARGET, point);
+        info.target.update(target / 1000.);
 
         point.setY(rtt);
         add_point(p.c_str(), StatKey::RTT, point);
+        info.rtt.update(rtt);
 
         point.setY(minrtt);
         add_point(p.c_str(), StatKey::MINRTT, point);
+        info.minrtt.update(minrtt);
 
         point.setY(fb_delay);
         add_point(p.c_str(), StatKey::FBDELAY, point);
+
+        info.loss.sent++;
+        info.loss.loss = loss;
     }
 
-    add_serie(p.c_str(), StatKey::MEDIA);
-    add_serie(p.c_str(), StatKey::RTX);
-    add_serie(p.c_str(), StatKey::PROBING);
-    add_serie(p.c_str(), StatKey::TOTAL);
-    add_serie(p.c_str(), StatKey::RTT);
-    add_serie(p.c_str(), StatKey::MINRTT);
-    add_serie(p.c_str(), StatKey::TARGET);
-    add_serie(p.c_str(), StatKey::RECEIVED_BITRATE);
+    QTreeWidgetItem * item = new QTreeWidgetItem(_info);
+    item->setText(0, medooze_file.parent_path().filename().c_str());
+
+    process(p.c_str(), StatKey::MEDIA, item, info.media);
+    process(p.c_str(), StatKey::RTX, item, info.rtx);
+    process(p.c_str(), StatKey::PROBING, item, info.probing);
+    process(p.c_str(), StatKey::TOTAL, item, info.total);
+    process(p.c_str(), StatKey::RTT, item, info.rtt);
+    process(p.c_str(), StatKey::MINRTT, item, info.minrtt);
+    process(p.c_str(), StatKey::TARGET, item, info.target);
+    process(p.c_str(), StatKey::RECEIVED_BITRATE, item, info.received);
     add_serie(p.c_str(), StatKey::FBDELAY);
+    info.loss.process(item);
 
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
+
+    emit on_loss_stats(p, info.loss.loss, info.loss.sent);
 }
 
 void MedoozeDisplay::load(const fs::path& p)
 {
     if(p.filename().string() == "average") load_average(p);
     else load_exp(p);
+
+    auto axe = _chart_bitrate->axes(Qt::Horizontal);
+    axe.front()->setTitleText("Time (s)");
+    axe = _chart_bitrate->axes(Qt::Vertical);
+    axe.front()->setTitleText("Bitrate (kbps)");
+
+    if(axe.size() == 2) axe.back()->setTitleText("Loss");
+
+    axe = _chart_rtt->axes(Qt::Horizontal);
+    axe.front()->setTitleText("Time (s)");
+    axe = _chart_rtt->axes(Qt::Vertical);
+    axe.front()->setTitleText("Time (ms)");
+}
+
+void MedoozeDisplay::save(const fs::path& dir)
+{
+    auto bitrate_filename = dir / "medooze_sent.png";
+    _chart_view_bitrate->grab().save(bitrate_filename.c_str(), "PNG");
+
+    auto rtt_filename = dir / "medooze_rtt.png";
+    _chart_view_rtt->grab().save(rtt_filename.c_str(), "PNG");
 }

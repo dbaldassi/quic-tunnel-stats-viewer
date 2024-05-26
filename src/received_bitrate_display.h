@@ -59,6 +59,8 @@ public:
 
     // load bitrate.csv, quic.csv
     void load(const fs::path& path) override;
+
+    void save(const fs::path& dir) override;
 };
 
 #endif // RECEIVEDBITRATEDISPLAY_H

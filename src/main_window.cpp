@@ -4,6 +4,7 @@
 #include <filesystem>
 
 #include <QStack>
+// #include <thread>
 
 namespace fs = std::filesystem;
 
@@ -16,6 +17,11 @@ MainWindow::MainWindow(QWidget *parent)
     _recv_display = std::make_unique<ReceivedBitrateDisplay>(ui->recv_tab, ui->recv_chart_layout, ui->legend_recv, ui->received_info);
     _medooze_display = std::make_unique<MedoozeDisplay>(ui->medooze_tab, ui->medooze_chart_layout, ui->legend_medooze, ui->medooze_info);
     _qlog_display = std::make_unique<QlogDisplay>(ui->qlog_tab, ui->qlog_chart_layout, ui->legend_qlog, ui->qlog_info);
+    _sent_loss_display = std::make_unique<SentLossDisplay>(ui->sent_loss_tab, ui->loss_chart_layout);
+
+    connect(ui->actionscreenshot, &QAction::triggered, this, &MainWindow::on_screenshot);
+    connect(_qlog_display.get(), &QlogDisplay::on_loss_stats, _sent_loss_display.get(), &SentLossDisplay::on_quic_loss_stats);
+    connect(_medooze_display.get(), &MedoozeDisplay::on_loss_stats, _sent_loss_display.get(), &SentLossDisplay::on_medooze_loss_stats);
 }
 
 void MainWindow::set_stats_dir(std::string dir)
@@ -78,6 +84,10 @@ void MainWindow::on_exp_changed(QTreeWidgetItem* item, int column)
     path /= item->text(0).toStdString();
 
     if(item->checkState(0) == Qt::Checked) {
+        /*std::thread([this, path]() { _recv_display->load(path); }).detach();
+        std::thread([this, path]() { _medooze_display->load(path); }).detach();
+        std::thread([this, path]() { _qlog_display->load(path); }).detach();*/
+
         _recv_display->load(path);
         _medooze_display->load(path);
         _qlog_display->load(path);
@@ -87,6 +97,17 @@ void MainWindow::on_exp_changed(QTreeWidgetItem* item, int column)
         _medooze_display->unload(path);
         _qlog_display->unload(path);
     }
+}
+
+void MainWindow::on_screenshot()
+{
+    fs::path dir = fs::temp_directory_path() / "tunnel_figures";
+
+    if(!fs::exists(dir)) fs::create_directory(dir);
+
+    _recv_display->save(dir);
+    _medooze_display->save(dir);
+    _qlog_display->save(dir);
 }
 
 MainWindow::~MainWindow()

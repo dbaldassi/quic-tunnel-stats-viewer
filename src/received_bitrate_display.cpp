@@ -26,14 +26,14 @@ ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout
 
 void ReceivedBitrateDisplay::init_map(StatMap& map, bool signal)
 {
-    map[StatKey::LINK] = std::make_tuple("link", nullptr, _chart_bitrate);
-    map[StatKey::BITRATE] = std::make_tuple("bitrate", nullptr, _chart_bitrate);
-    map[StatKey::FPS] = std::make_tuple("fps", nullptr, _chart_fps);
-    map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", nullptr, nullptr);
-    map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", nullptr, nullptr);
-    map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", nullptr, nullptr);
-    map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", nullptr, nullptr);
-    map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", nullptr, _chart_bitrate);
+    map[StatKey::LINK] = std::make_tuple("link", nullptr, _chart_bitrate, ExpInfo{false, QuicImpl::NONE, CCAlgo::NONE, false, true});
+    map[StatKey::BITRATE] = std::make_tuple("bitrate", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::FPS] = std::make_tuple("fps", nullptr, _chart_fps, ExpInfo{});
+    map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", nullptr, nullptr, ExpInfo{});
+    map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", nullptr, nullptr, ExpInfo{});
+    map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", nullptr, nullptr, ExpInfo{});
+    map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", nullptr, nullptr, ExpInfo{});
+    map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", nullptr, _chart_bitrate, ExpInfo{});
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
@@ -57,10 +57,18 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
     using BitrateReader = CsvReaderTypeRepeat<',', int, 8>;
     using QuicSentReader = CsvReaderTypeRepeat<',', double, 2>;
 
+    if(_path_keys.empty()) create_serie(p, StatKey::LINK);
+
     create_serie(p, StatKey::BITRATE);
-    create_serie(p, StatKey::LINK);
     create_serie(p, StatKey::FPS);
-    create_serie(p, StatKey::QUIC_SENT);
+    // create_serie(p, StatKey::QUIC_SENT);
+
+    // std::get<StatsKeyProperty::NAME>(_path_keys[p.c_str()][StatKey::BITRATE]) = p.c_str();
+/*
+    auto& map = _path_keys[path.c_str()];
+    if(map.contains(StatKey::LINK)) {
+        srd::get<Stats
+    }*/
 
     uint64_t sum = 0;
 
@@ -70,7 +78,7 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
         QPoint p_bitrate(time, bitrate), p_fps(time, fps), p_link(time, link);
 
         add_point(p.c_str(), StatKey::BITRATE, p_bitrate);
-        add_point(p.c_str(), StatKey::LINK, p_link);
+        if(_path_keys.size() == 1)  add_point(p.c_str(), StatKey::LINK, p_link);
         add_point(p.c_str(), StatKey::FPS, p_fps);
 
         _infos_array[StatKey::BITRATE].mean += bitrate;
@@ -87,7 +95,7 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
     _infos_array[StatKey::FPS].variance = (_infos_array[StatKey::FPS].variance / sum) - ( _infos_array[StatKey::FPS].mean *  _infos_array[StatKey::FPS].mean);
 
     add_serie(p.c_str(), StatKey::BITRATE);
-    add_serie(p.c_str(), StatKey::LINK);
+    if(_path_keys.size() == 1) add_serie(p.c_str(), StatKey::LINK);
     add_serie(p.c_str(), StatKey::FPS);
 
     QTreeWidgetItem * item = new QTreeWidgetItem(_info);
@@ -109,7 +117,7 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
     fps_variance->setText(0, "FPS variance");
     fps_variance->setText(1, QString::number(_infos_array[StatKey::FPS].variance));
 
-    fs::path quiccsv = p / "quic.csv";
+    /* fs::path quiccsv = p / "quic.csv";
 
     if(fs::exists(p)) {
         for(auto& it : QuicSentReader(p)) {
@@ -134,8 +142,41 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
         QTreeWidgetItem * quic_variance = new QTreeWidgetItem(item);
         quic_variance->setText(0, "QUIC sent variance");
         quic_variance->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].variance));
-    }
+    }*/
 
     _chart_bitrate->createDefaultAxes();
     _chart_fps->createDefaultAxes();
+
+    QFont font1, font2;
+    font1.setPointSize(18);
+    font2.setPointSize(15);
+
+    auto axe = _chart_bitrate->axes(Qt::Horizontal);
+    axe.front()->setTitleText("Time (s)");
+    axe.front()->setTitleFont(font1);
+    axe.front()->setLabelsFont(font2);
+
+    axe = _chart_bitrate->axes(Qt::Vertical);
+    axe.front()->setTitleText("Bitrate (kbps)");
+    axe.front()->setTitleFont(font1);
+    axe.front()->setLabelsFont(font2);
+
+    axe = _chart_fps->axes(Qt::Horizontal);
+    axe.front()->setTitleText("Time (s)");
+    axe.front()->setTitleFont(font1);
+    axe.front()->setLabelsFont(font2);
+
+    axe = _chart_fps->axes(Qt::Vertical);
+    axe.front()->setTitleText("FPS");
+    axe.front()->setTitleFont(font1);
+    axe.front()->setLabelsFont(font2);
+}
+
+void ReceivedBitrateDisplay::save(const fs::path& dir)
+{
+    auto bitrate_filename = dir / "received_bitrate.png";
+    _chart_view_bitrate->grab().save(bitrate_filename.c_str(), "PNG");
+
+    auto fps_filename = dir / "received_fps.png";
+    _chart_view_fps->grab().save(fps_filename.c_str(), "PNG");
 }

@@ -30,15 +30,16 @@ class QlogDisplay : public QObject, public DisplayBase
     {
         BYTES_IN_FLIGHT,
         CWND,
-        RTT
+        RTT,
+        LOSS
     };
 
     struct Info {
-        int lost;
-        int sent;
+        int lost = 0;
+        int sent = 0;
 
-        double mean_rtt;
-        double variance_rtt;
+        double mean_rtt = 0;
+        double variance_rtt = 0;
     };
 
     StatsLineChart * _chart_bitrate, * _chart_rtt;
@@ -58,6 +59,11 @@ public:
     ~QlogDisplay() = default;
 
     void load(const fs::path& path) override;
+    void save(const fs::path& dir) override;
+
+signals:
+
+    void on_loss_stats(const fs::path& path, int loss, int sent);
 };
 
 #endif // QLOGDISPLAY_H

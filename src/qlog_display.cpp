@@ -6,6 +6,7 @@
 #include <QLineSeries>
 #include <QVBoxLayout>
 #include <QTreeWidgetItem>
+#include <QValueAxis>
 
 #include "qlog_display.h"
 #include "stats_line_chart.h"
@@ -32,9 +33,10 @@ QlogDisplay::QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend,
 
 void QlogDisplay::init_map(StatMap& map, bool signal)
 {
-    map[StatKey::CWND] = std::make_tuple("Cwnd", nullptr, _chart_bitrate);
-    map[StatKey::BYTES_IN_FLIGHT] = std::make_tuple("Bytes in flight", nullptr, _chart_bitrate);
-    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt);
+    map[StatKey::CWND] = std::make_tuple("Cwnd", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::BYTES_IN_FLIGHT] = std::make_tuple("Bytes in flight", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{});
+    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{});
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
@@ -62,6 +64,13 @@ void QlogDisplay::add_info(const fs::path& path, const Info& info)
     sent->setText(0, "Sent");
     sent->setText(1, QString::number(info.sent));
 
+    if(info.sent != 0) {
+        double p = 100. * static_cast<double>(info.lost) / static_cast<double>(info.sent);
+        QTreeWidgetItem * percent = new QTreeWidgetItem(item);
+        percent->setText(0, "loss percent");
+        percent->setText(1, QString::number(p));
+    }
+
     QTreeWidgetItem * rtt = new QTreeWidgetItem(item);
     rtt->setText(0, "RTT mean");
     rtt->setText(1, QString::number(info.mean_rtt));
@@ -88,11 +97,12 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
         for(auto& event : trace["events"]) {
             auto name = event["name"].get<std::string>();
 
+            if(time_0 == -1) time_0 = event["time"].get<int64_t>();
+            int64_t time = event["time"].get<int64_t>() - time_0;
+
             if(name == "recovery:metrics_updated") {
                 try {
-                    if(time_0 == -1) time_0 = event["time"].get<int64_t>();
 
-                    int64_t time = event["time"].get<int64_t>() - time_0;
                     auto data = event["data"];
 
                     QPointF p_cwnd{time/1000000.f, data["congestion_window"].get<float>()};
@@ -103,9 +113,9 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
                 } catch(...) { }
 
                 try {
-                    if(time_0 == -1) time_0 = event["time"].get<int64_t>();
+                    // if(time_0 == -1) time_0 = event["time"].get<int64_t>();
+                    // int64_t time = event["time"].get<int64_t>() - time_0;
 
-                    int64_t time = event["time"].get<int64_t>() - time_0;
                     auto data = event["data"];
 
                     float rtt = data["latest_rtt"].get<float>();
@@ -119,7 +129,9 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
                 } catch(...) {}
             }
             else if(name == "loss:packets_lost") {
+                add_point(key.c_str(), StatKey::LOSS, QPointF(time / 1000000.f, info.lost));
                 info.lost += event["data"]["lost_packets"].get<int>();
+                add_point(key.c_str(), StatKey::LOSS, QPointF(time / 1000000.f, info.lost));
             }
             else if(name == "transport:packet_sent") {
                 ++info.sent;
@@ -131,6 +143,8 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
     info.variance_rtt = (info.variance_rtt / sum) - (info.mean_rtt * info.mean_rtt);
 
     add_info(path, info);
+
+    emit on_loss_stats(key, info.lost, info.sent);
 }
 
 void QlogDisplay::parse_quicgo(const fs::path& path)
@@ -151,9 +165,11 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
 
         try {
             auto name = line_json["name"].get<std::string>();
+            auto time = line_json["time"].get<float>() / 1000.f;
+
             if(name == "recovery:metrics_updated") {
                 auto data = line_json["data"];
-                auto time = line_json["time"].get<float>() / 1000.f;
+
 
                 if(data.contains("congestion_window")) {
                     QPointF p_cwnd{time, data["congestion_window"].get<float>()};
@@ -183,9 +199,20 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
 
                     ++sum;
                 }
+
+                if(data.contains("lost_packets")) {
+                    add_point(key.c_str(), StatKey::LOSS, QPointF(time, info.lost));
+                    info.lost = data["lost_packets"].get<int>();
+                    add_point(key.c_str(), StatKey::LOSS, QPointF(time, info.lost));
+                }
+                if(data.contains("total_send_packets")) {
+                    info.sent = data["total_send_packets"].get<int>();
+                }
             }
-            else if(name == "transport:packet_lost") {
+            else if(name == "transport:packet_lost" || name == "recovery:packet_lost" ) {
+                add_point(key.c_str(), StatKey::LOSS, QPointF(time, info.lost));
                 ++info.lost;
+                add_point(key.c_str(), StatKey::LOSS, QPointF(time, info.lost));
             }
             else if(name == "transport:packet_sent") {
                 ++info.sent;
@@ -197,6 +224,8 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
     info.variance_rtt = (info.variance_rtt / sum) - (info.mean_rtt * info.mean_rtt);
 
     add_info(path, info);
+
+    emit on_loss_stats(key, info.lost, info.sent);
 }
 
 void QlogDisplay::load_exp(const fs::path& p)
@@ -217,6 +246,7 @@ void QlogDisplay::load_exp(const fs::path& p)
     create_serie(p, StatKey::BYTES_IN_FLIGHT);
     create_serie(p, StatKey::CWND);
     create_serie(p, StatKey::RTT);
+    create_serie(p, StatKey::LOSS);
 
     auto impl = path.parent_path().filename().string();
 
@@ -240,35 +270,116 @@ void QlogDisplay::load_exp(const fs::path& p)
     add_serie(p.c_str(), StatKey::BYTES_IN_FLIGHT);
     add_serie(p.c_str(), StatKey::CWND);
     add_serie(p.c_str(), StatKey::RTT);
+    add_serie(p.c_str(), StatKey::LOSS);
 
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
+
+    const auto& map = _path_keys[p.c_str()];
+    auto* serie = std::get<StatsKeyProperty::SERIE>(map[StatKey::LOSS]);
+
+    auto loss_axis = new QValueAxis();
+    _chart_bitrate->addAxis(loss_axis, Qt::AlignRight);
+
+    const auto& points = serie->points();
+    if(!points.empty()) {
+        const auto& point = points.back();
+        loss_axis->setRange(0,  point.y());
+    }
+
+    auto axis = serie->attachedAxes();
+    serie->detachAxis(axis.back());
+    serie->attachAxis(loss_axis);
 }
 
 void QlogDisplay::load_average(const fs::path& p)
 {
     fs::path file = p / "qlog.csv";
 
-    using QlogReader = CsvReaderTypeRepeat<',', double, 2>;
+    if(!fs::exists(file)) return; // in case of udp
+
+    using QlogReader = CsvReaderTypeRepeat<',', double, 4>;
 
     create_serie(p, StatKey::RTT);
 
+    Info info;
+
+    int sum = 0;
+
     for(const auto& it : QlogReader(file)) {
-        const auto& [ts, rtt] = it;
+        const auto& [ts, rtt, loss, sent] = it;
 
         QPointF point{ts, rtt / 1000.};
 
         add_point(p.c_str(), StatKey::RTT, point);
+
+        info.mean_rtt += rtt;
+        info.variance_rtt += (rtt * rtt);
+
+        info.lost = loss;
+        info.sent = sent;
+        ++sum;
     }
+
+    info.mean_rtt /= sum;
+    info.variance_rtt = (info.variance_rtt / sum) - (info.mean_rtt * info.mean_rtt);
+
+    add_info(p, info);
 
     add_serie(p.c_str(), StatKey::RTT);
 
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
+
+    emit on_loss_stats(p, info.lost, info.sent);
 }
 
 void QlogDisplay::load(const fs::path& p)
 {
     if(p.filename().string() == "average") load_average(p);
     else load_exp(p);
+
+    QFont font1, font2;
+    font1.setPointSize(18);
+    font2.setPointSize(15);
+
+    auto axe = _chart_bitrate->axes(Qt::Horizontal);
+    if(!axe.empty()) {
+        axe.front()->setTitleText("Time (s)");
+        axe.front()->setTitleFont(font1);
+        axe.front()->setLabelsFont(font2);
+    }
+
+    axe = _chart_bitrate->axes(Qt::Vertical);
+    if(!axe.empty()) axe.front()->setTitleText("Bytes");
+    if(axe.size() == 2) axe.back()->setTitleText("Loss");
+
+    for(auto& it : axe) {
+        it->setTitleFont(font1);
+        it->setLabelsFont(font2);
+    }
+
+    axe = _chart_rtt->axes(Qt::Horizontal);
+    if(!axe.empty()) {
+        axe.front()->setTitleText("Time (s)");
+        axe.front()->setTitleFont(font1);
+        axe.front()->setLabelsFont(font2);
+    }
+
+    axe = _chart_rtt->axes(Qt::Vertical);
+    if(!axe.empty()) axe.front()->setTitleText("Time (ms)");
+    for(auto& it : axe) {
+        it->setTitleFont(font1);
+        it->setLabelsFont(font2);
+    }
+
+}
+
+void QlogDisplay::save(const fs::path& dir)
+{
+    auto bitrate_filename = dir / "qlog_cwnd.png";
+    _chart_view_bitrate->grab().save(bitrate_filename.c_str(), "PNG");
+
+    auto rtt_filename = dir / "qlog_rtt.png";
+    _chart_view_rtt->grab().save(rtt_filename.c_str(), "PNG");
 }

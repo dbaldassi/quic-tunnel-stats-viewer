@@ -47,7 +47,7 @@
       <item>
        <widget class="QTabWidget" name="tabWidget">
         <property name="currentIndex">
-         <number>0</number>
+         <number>3</number>
         </property>
         <widget class="QWidget" name="recv_tab">
          <attribute name="title">
@@ -169,11 +169,15 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="all_tab">
+        <widget class="QWidget" name="sent_loss_tab">
          <attribute name="title">
-          <string>All</string>
+          <string>Sent/Loss</string>
          </attribute>
-         <layout class="QVBoxLayout" name="verticalLayout_5"/>
+         <layout class="QVBoxLayout" name="verticalLayout_5">
+          <item>
+           <layout class="QVBoxLayout" name="loss_chart_layout"/>
+          </item>
+         </layout>
         </widget>
        </widget>
       </item>
@@ -194,6 +198,7 @@
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionscreenshot"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -204,6 +209,11 @@
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionscreenshot">
+   <property name="text">
+    <string>screenshot</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>

@@ -11,6 +11,7 @@ qt_add_executable( ${exe}
     medooze_display.h medooze_display.cpp
     qlog_display.h qlog_display.cpp
     display_base.h display_base.cpp
+    sent_loss_display.h sent_loss_display.cpp
     )
 
 target_link_libraries( ${exe} PUBLIC

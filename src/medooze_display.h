@@ -122,6 +122,12 @@ public:
         add_serie(p.c_str(), key);
     }
 
+    template<Processable Stat>
+    void process(const fs::path& p, StatKey key, QTreeWidgetItem* root, Stat& stat) {
+        stat.process(root);
+        add_serie(p.c_str(), key);
+    }
+
     void load_average(const fs::path& path);
     void load_exp(const fs::path& path);
 
@@ -130,6 +136,10 @@ public:
     ~MedoozeDisplay() = default;
 
     void load(const fs::path& path) override;
+    void save(const fs::path& dir) override;
+
+signals:
+    void on_loss_stats(const fs::path& path, int loss, int sent);
 };
 
 #endif // MEDOOZEDISPLAY_H

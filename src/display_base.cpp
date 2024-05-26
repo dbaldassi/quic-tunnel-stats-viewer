@@ -59,23 +59,23 @@ void DisplayBase::create_serie(const fs::path&p, uint8_t key)
     std::stringstream exp_name(p.filename().string());
 
     StatMap& map = _path_keys[p.c_str()];
-    if(map.empty()) init_map(map);
-
-    stream << std::get<StatsKeyProperty::NAME>(map[key]) << " "
-           << "(";
-
-    for(int i = 0; i < 3; ++i) {
-        std::string line;
-        std::getline(exp_name, line, '_');
-
-        if(i != 0) stream << "_";
-
-        stream << line.c_str();
+    if(map.empty()) {
+        init_map(map);
+        set_info(p);
     }
 
-    stream << ")";
+    // stream << std::get<StatsKeyProperty::NAME>(map[key]);
 
-    serie->setName(name);
+    auto info = std::get<StatsKeyProperty::INFO>(map[key]);
+    if(_display_impl && info.editable) {
+        stream << info.impl_str << " " << (info.stream ? info.cc_str : "dgrams");
+        serie->setName(name);
+    }
+    else {
+        stream << std::get<StatsKeyProperty::NAME>(map[key]);
+        serie->setName(name);
+    }
+
     std::get<StatsKeyProperty::SERIE>(map[key]) = serie;
 }
 
@@ -102,3 +102,78 @@ void DisplayBase::unload(const fs::path& path)
         delete it;
     }
 }
+
+void DisplayBase::set_info(const fs::path& path)
+{
+    auto info = get_info(path);
+
+    auto& map = _path_keys[path.c_str()];
+
+    // qInfo() << info.stream << " " << info.cc << " " << info.impl;
+
+    for(auto& it : map) {
+        auto info_tmp = std::get<StatsKeyProperty::INFO>(it);
+        if(info_tmp.editable) std::get<StatsKeyProperty::INFO>(it) = info;
+    }
+}
+
+DisplayBase::ExpInfo DisplayBase::get_info(const fs::path& path)
+{
+    ExpInfo info;
+
+    for(auto& it : path) {
+        if(it == "streams") {
+            info.stream = true;
+        }
+        else if(it == "dgrams") {
+            info.stream = false;
+        }
+
+        else if(it == "mvfst") {
+            info.impl = QuicImpl::MVFST;
+            info.impl_str = it.c_str();
+        }
+        else if(it == "quicgo") {
+            info.impl = QuicImpl::QUICGO;
+            info.impl_str = it.c_str();
+        }
+        else if(it == "quiche") {
+            info.impl = QuicImpl::QUICHE;
+            info.impl_str = it.c_str();
+        }
+        else if(it == "msquic") {
+            info.impl = QuicImpl::MSQUIC;
+            info.impl_str = it.c_str();
+        }
+        else if(it == "udp") {
+            info.impl = QuicImpl::UDP;
+            info.impl_str = it.c_str();
+        }
+
+        else if(it == "bbr") {
+            info.cc = CCAlgo::BBR;
+            info.cc_str = it.c_str();
+        }
+        else if(it == "newreno") {
+            info.cc = CCAlgo::NEWRENO;
+            info.cc_str = it.c_str();
+        }
+        else if(it == "none") {
+            info.cc = CCAlgo::NONE;
+            info.cc_str = it.c_str();
+        }
+        else if(it == "copa") {
+            info.cc = CCAlgo::COPA;
+            info.cc_str = it.c_str();
+        }
+        else if(it == "cubic") {
+            info.cc = CCAlgo::CUBIC;
+            info.cc_str = it.c_str();
+        }
+
+    }
+
+    return info;
+}
+
+
