@@ -21,6 +21,7 @@ class StatsLineChart;
 class StatsLineChartView;
 class QVBoxLayout;
 class QTreeWidget;
+class AllBitrateDisplay;
 
 class QlogDisplay : public QObject, public DisplayBase
 {
@@ -60,6 +61,9 @@ public:
 
     void load(const fs::path& path) override;
     void save(const fs::path& dir) override;
+
+    void add_to_all(const fs::path& dir, AllBitrateDisplay* all);
+    void set_geometry(float ratio_w, float ratio_h);
 
 signals:
 

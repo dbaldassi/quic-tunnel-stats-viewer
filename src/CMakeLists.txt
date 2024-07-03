@@ -12,6 +12,7 @@ qt_add_executable( ${exe}
     qlog_display.h qlog_display.cpp
     display_base.h display_base.cpp
     sent_loss_display.h sent_loss_display.cpp
+    all_bitrate.h all_bitrate.cpp
     )
 
 target_link_libraries( ${exe} PUBLIC

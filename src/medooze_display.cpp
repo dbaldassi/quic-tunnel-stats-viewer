@@ -9,6 +9,7 @@
 
 #include "csv_reader.h"
 #include "stats_line_chart.h"
+#include "all_bitrate.h"
 
 MedoozeDisplay::MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info)
     : DisplayBase(tab, legend, info)
@@ -22,6 +23,7 @@ MedoozeDisplay::MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* l
     layout->addWidget(_chart_view_bitrate, 1);
     layout->addWidget(_chart_view_rtt, 1);
 
+    _display_impl = false;
     create_legend();
 }
 
@@ -233,6 +235,14 @@ void MedoozeDisplay::load_exp(const fs::path& p)
         accu_received.accumulate(sent_time, ((sent_time > 0 && recv_ts == 0) ? 0 : packet_size * 8));
     }
 
+    auto& map = _path_keys[p.c_str()];
+    for(auto it : map.keys()) {
+        auto info = std::get<StatsKeyProperty::INFO>(map[it]);
+        info.stream = false;
+        std::get<StatsKeyProperty::INFO>(map[it]) = info;
+    }
+
+
     QTreeWidgetItem * item = new QTreeWidgetItem(_info);
     item->setText(0, path.parent_path().filename().c_str());
 
@@ -260,7 +270,7 @@ void MedoozeDisplay::load_exp(const fs::path& p)
 
     _chart_bitrate->addAxis(loss_axis, Qt::AlignRight);
 
-    const auto& map = _path_keys[p.c_str()];
+    // const auto& map = _path_keys[p.c_str()];
     auto* serie = std::get<StatsKeyProperty::SERIE>(map[StatKey::LOSS]);
 
     auto axis = serie->attachedAxes();
@@ -360,17 +370,44 @@ void MedoozeDisplay::load(const fs::path& p)
     if(p.filename().string() == "average") load_average(p);
     else load_exp(p);
 
+    QFont font1, font2;
+    font1.setPointSize(40);
+    font2.setPointSize(36);
+    font1.setBold(true);
+    font2.setBold(true);
+
     auto axe = _chart_bitrate->axes(Qt::Horizontal);
     axe.front()->setTitleText("Time (s)");
+    axe.front()->setTitleFont(font1);
+    axe.front()->setLabelsFont(font2);
+    axe.front()->setGridLineVisible(false);
+
     axe = _chart_bitrate->axes(Qt::Vertical);
     axe.front()->setTitleText("Bitrate (kbps)");
+    axe.front()->setTitleFont(font1);
+    axe.front()->setLabelsFont(font2);
+    axe.front()->setGridLineVisible(false);
 
-    if(axe.size() == 2) axe.back()->setTitleText("Loss");
+    if(axe.size() == 2) {
+        axe.back()->setTitleText("Loss");
+        axe.back()->setTitleFont(font1);
+        axe.back()->setLabelsFont(font2);
+        axe.back()->setGridLineVisible(false);
+    }
 
     axe = _chart_rtt->axes(Qt::Horizontal);
     axe.front()->setTitleText("Time (s)");
+    axe.front()->setTitleFont(font1);
+    axe.front()->setLabelsFont(font2);
+    axe.front()->setGridLineVisible(false);
+
     axe = _chart_rtt->axes(Qt::Vertical);
     axe.front()->setTitleText("Time (ms)");
+    axe.front()->setTitleFont(font1);
+    axe.front()->setLabelsFont(font2);
+    axe.front()->setGridLineVisible(false);
+
+    _chart_view_bitrate->hide();
 }
 
 void MedoozeDisplay::save(const fs::path& dir)
@@ -380,4 +417,31 @@ void MedoozeDisplay::save(const fs::path& dir)
 
     auto rtt_filename = dir / "medooze_rtt.png";
     _chart_view_rtt->grab().save(rtt_filename.c_str(), "PNG");
+}
+
+void MedoozeDisplay::add_to_all(const fs::path& dir, AllBitrateDisplay* all)
+{
+    auto& map = _path_keys[dir.c_str()];
+    // all->add_stats(dir, AllBitrateDisplay::TARGET, map[TARGET]);
+    // all->add_stats(dir, AllBitrateDisplay::PROBING, map[PROBING]);
+    // all->add_stats(dir, AllBitrateDisplay::MEDIA, map[MEDIA]);
+    all->add_stats(dir, AllBitrateDisplay::TOTAL, map[TOTAL]);
+    // all->add_stats(dir, AllBitrateDisplay::RTX, map[RTX]);
+    // all->add_stats(dir, AllBitrateDisplay::MEDOOZE_RTT, map[RTT]);
+    all->add_stats(dir, AllBitrateDisplay::MEDOOZE_LOSS, map[LOSS]);
+}
+
+void MedoozeDisplay::set_geometry(float ratio_w, float ratio_h)
+{
+    auto g = _chart_view_rtt->geometry();
+
+    if(ratio_w == ratio_h) {
+        if(g.width() > g.height()) g.setWidth(g.height());
+        else g.setHeight((g.width()));
+    }
+    else {
+        g.setHeight(g.width() * ratio_h);
+    }
+
+    _chart_view_rtt->setGeometry(g);
 }

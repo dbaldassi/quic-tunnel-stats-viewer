@@ -12,6 +12,8 @@
 #include "stats_line_chart.h"
 #include "csv_reader.h"
 
+#include "all_bitrate.h"
+
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -28,15 +30,17 @@ QlogDisplay::QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend,
     layout->addWidget(_chart_view_bitrate, 1);
     layout->addWidget(_chart_view_rtt, 1);
 
+    _display_impl = false;
+
     create_legend();
 }
 
 void QlogDisplay::init_map(StatMap& map, bool signal)
 {
-    map[StatKey::CWND] = std::make_tuple("Cwnd", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::BYTES_IN_FLIGHT] = std::make_tuple("Bytes in flight", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{});
-    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::CWND] = std::make_tuple("Cwnd", nullptr, _chart_bitrate, ExpInfo{.stream = false});
+    map[StatKey::BYTES_IN_FLIGHT] = std::make_tuple("Bytes in flight", nullptr, _chart_bitrate, ExpInfo{.stream = false});
+    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{.stream = false});
+    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{.stream = false});
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
@@ -105,8 +109,8 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
 
                     auto data = event["data"];
 
-                    QPointF p_cwnd{time/1000000.f, data["congestion_window"].get<float>()};
-                    QPointF p_bif{time/1000000.f, data["bytes_in_flight"].get<float>()};
+                    QPointF p_cwnd{time/1000000.f, data["congestion_window"].get<float>() / 1000.f};
+                    QPointF p_bif{time/1000000.f, data["bytes_in_flight"].get<float>() / 1000.f};
 
                     add_point(key.c_str(), StatKey::CWND, p_cwnd);
                     add_point(key.c_str(), StatKey::BYTES_IN_FLIGHT, p_bif);
@@ -267,6 +271,14 @@ void QlogDisplay::load_exp(const fs::path& p)
         parse_quicgo(path);
     }
 
+    auto& map = _path_keys[p.c_str()];
+
+    for(auto it : map.keys()) {
+        auto info = std::get<StatsKeyProperty::INFO>(map[it]);
+        info.stream = false;
+        std::get<StatsKeyProperty::INFO>(map[it]) = info;
+    }
+
     add_serie(p.c_str(), StatKey::BYTES_IN_FLIGHT);
     add_serie(p.c_str(), StatKey::CWND);
     add_serie(p.c_str(), StatKey::RTT);
@@ -275,7 +287,7 @@ void QlogDisplay::load_exp(const fs::path& p)
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
 
-    const auto& map = _path_keys[p.c_str()];
+    // auto& map = _path_keys[p.c_str()];
     auto* serie = std::get<StatsKeyProperty::SERIE>(map[StatKey::LOSS]);
 
     auto loss_axis = new QValueAxis();
@@ -340,23 +352,27 @@ void QlogDisplay::load(const fs::path& p)
     else load_exp(p);
 
     QFont font1, font2;
-    font1.setPointSize(18);
-    font2.setPointSize(15);
+    font1.setPointSize(40);
+    font2.setPointSize(36);
+    font1.setBold(true);
+    font2.setBold(true);
 
     auto axe = _chart_bitrate->axes(Qt::Horizontal);
     if(!axe.empty()) {
         axe.front()->setTitleText("Time (s)");
         axe.front()->setTitleFont(font1);
         axe.front()->setLabelsFont(font2);
+        axe.front()->setGridLineVisible(false);
     }
 
     axe = _chart_bitrate->axes(Qt::Vertical);
-    if(!axe.empty()) axe.front()->setTitleText("Bytes");
+    if(!axe.empty()) axe.front()->setTitleText("Bytes (KB)");
     if(axe.size() == 2) axe.back()->setTitleText("Loss");
 
     for(auto& it : axe) {
         it->setTitleFont(font1);
         it->setLabelsFont(font2);
+        it->setGridLineVisible(false);
     }
 
     axe = _chart_rtt->axes(Qt::Horizontal);
@@ -364,6 +380,7 @@ void QlogDisplay::load(const fs::path& p)
         axe.front()->setTitleText("Time (s)");
         axe.front()->setTitleFont(font1);
         axe.front()->setLabelsFont(font2);
+        axe.front()->setGridLineVisible(false);
     }
 
     axe = _chart_rtt->axes(Qt::Vertical);
@@ -371,8 +388,10 @@ void QlogDisplay::load(const fs::path& p)
     for(auto& it : axe) {
         it->setTitleFont(font1);
         it->setLabelsFont(font2);
+        it->setGridLineVisible(false);
     }
 
+    _chart_view_rtt->hide();
 }
 
 void QlogDisplay::save(const fs::path& dir)
@@ -382,4 +401,28 @@ void QlogDisplay::save(const fs::path& dir)
 
     auto rtt_filename = dir / "qlog_rtt.png";
     _chart_view_rtt->grab().save(rtt_filename.c_str(), "PNG");
+}
+
+void QlogDisplay::add_to_all(const fs::path& dir, AllBitrateDisplay* all)
+{
+    auto& map = _path_keys[dir.c_str()];
+    all->add_stats(dir, AllBitrateDisplay::CWND, map[CWND]);
+    // all->add_stats(dir, AllBitrateDisplay::BYTES_IN_FLIGHT, map[BYTES_IN_FLIGHT]);
+    // all->add_stats(dir, AllBitrateDisplay::QUIC_RTT, map[RTT]);
+    all->add_stats(dir, AllBitrateDisplay::QUIC_LOSS, map[LOSS]);
+}
+
+void QlogDisplay::set_geometry(float ratio_w, float ratio_h)
+{
+    auto g = _chart_view_bitrate->geometry();
+
+    if(ratio_w == ratio_h) {
+        if(g.width() > g.height()) g.setWidth(g.height());
+        else g.setHeight((g.width()));
+    }
+    else {
+        g.setHeight(g.width() * ratio_h);
+    }
+
+    _chart_view_bitrate->setGeometry(g);
 }

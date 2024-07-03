@@ -7,6 +7,7 @@
 #include <QLineSeries>
 
 #include <filesystem>
+#include <optional>
 
 namespace fs = std::filesystem;
 
@@ -48,6 +49,8 @@ protected:
 
         QString impl_str;
         QString cc_str;
+
+        std::optional<QColor> color;
     };
 
     using StatMap = QMap<uint8_t, std::tuple<QString, QLineSeries*, QChart*, ExpInfo>>;
@@ -87,16 +90,22 @@ protected:
             chart->addSeries(serie);
 
             QFont font = chart->font();
-            font.setPointSize(20);
+            font.setPointSize(44);
+            font.setBold(true);
 
             chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
             chart->legend()->setFont(font);
-\
-            if(info.stream) {
-                auto pen = serie->pen();
-                pen.setStyle(Qt::DotLine);
-                serie->setPen(pen);
-            }
+            chart->legend()->detachFromChart();
+
+            // qInfo() << "geo ; " << chart->geometry();
+            // chart->legend()->setGeometry(chart->geometry());
+
+            auto pen = serie->pen();
+            pen.setWidth(8);
+            if(info.stream) pen.setStyle(Qt::DotLine);
+            if(info.color.has_value()) pen.setColor(*info.color);
+
+            serie->setPen(pen);
 
             if(info.should_be_black) {
                 auto pen = serie->pen();

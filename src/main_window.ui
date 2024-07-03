@@ -47,7 +47,7 @@
       <item>
        <widget class="QTabWidget" name="tabWidget">
         <property name="currentIndex">
-         <number>3</number>
+         <number>0</number>
         </property>
         <widget class="QWidget" name="recv_tab">
          <attribute name="title">
@@ -179,6 +179,35 @@
           </item>
          </layout>
         </widget>
+        <widget class="QWidget" name="all_bitrate_tab">
+         <attribute name="title">
+          <string>All</string>
+         </attribute>
+         <layout class="QHBoxLayout" name="horizontalLayout_6" stretch="4,1">
+          <item>
+           <layout class="QVBoxLayout" name="all_bitrate_layout"/>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout_4" stretch="1,1">
+            <item>
+             <widget class="QListWidget" name="all_bitrate_legend"/>
+            </item>
+            <item>
+             <widget class="QTreeWidget" name="all_bitrate_info">
+              <attribute name="headerVisible">
+               <bool>false</bool>
+              </attribute>
+              <column>
+               <property name="text">
+                <string notr="true">1</string>
+               </property>
+              </column>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
        </widget>
       </item>
      </layout>
@@ -205,13 +234,37 @@
      <string>Help</string>
     </property>
    </widget>
+   <widget class="QMenu" name="menuratio">
+    <property name="title">
+     <string>ratio</string>
+    </property>
+    <addaction name="action1_1"/>
+    <addaction name="action1_0_7"/>
+    <addaction name="action2_1"/>
+   </widget>
    <addaction name="menuQuic_Tunnel_stats_viewer"/>
+   <addaction name="menuratio"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionscreenshot">
    <property name="text">
     <string>screenshot</string>
+   </property>
+  </action>
+  <action name="action1_1">
+   <property name="text">
+    <string>1:1</string>
+   </property>
+  </action>
+  <action name="action1_0_7">
+   <property name="text">
+    <string>1:0.7</string>
+   </property>
+  </action>
+  <action name="action2_1">
+   <property name="text">
+    <string>2:1</string>
    </property>
   </action>
  </widget>

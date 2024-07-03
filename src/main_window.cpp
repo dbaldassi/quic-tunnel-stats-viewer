@@ -18,10 +18,14 @@ MainWindow::MainWindow(QWidget *parent)
     _medooze_display = std::make_unique<MedoozeDisplay>(ui->medooze_tab, ui->medooze_chart_layout, ui->legend_medooze, ui->medooze_info);
     _qlog_display = std::make_unique<QlogDisplay>(ui->qlog_tab, ui->qlog_chart_layout, ui->legend_qlog, ui->qlog_info);
     _sent_loss_display = std::make_unique<SentLossDisplay>(ui->sent_loss_tab, ui->loss_chart_layout);
+    _all_bitrate_display = std::make_unique<AllBitrateDisplay>(ui->all_bitrate_tab, ui->all_bitrate_layout, ui->all_bitrate_legend, ui->all_bitrate_info);
 
     connect(ui->actionscreenshot, &QAction::triggered, this, &MainWindow::on_screenshot);
     connect(_qlog_display.get(), &QlogDisplay::on_loss_stats, _sent_loss_display.get(), &SentLossDisplay::on_quic_loss_stats);
     connect(_medooze_display.get(), &MedoozeDisplay::on_loss_stats, _sent_loss_display.get(), &SentLossDisplay::on_medooze_loss_stats);
+    connect(ui->action1_0_7, &QAction::triggered, this, &MainWindow::on_ratio_1_0_7);
+    connect(ui->action1_1, &QAction::triggered, this, &MainWindow::on_ratio_1_1);
+    connect(ui->action2_1, &QAction::triggered, this, &MainWindow::on_ratio_2_1);
 }
 
 void MainWindow::set_stats_dir(std::string dir)
@@ -84,18 +88,20 @@ void MainWindow::on_exp_changed(QTreeWidgetItem* item, int column)
     path /= item->text(0).toStdString();
 
     if(item->checkState(0) == Qt::Checked) {
-        /*std::thread([this, path]() { _recv_display->load(path); }).detach();
-        std::thread([this, path]() { _medooze_display->load(path); }).detach();
-        std::thread([this, path]() { _qlog_display->load(path); }).detach();*/
-
-        _recv_display->load(path);
+       // _recv_display->load(path);
         _medooze_display->load(path);
-        _qlog_display->load(path);
+        // _qlog_display->load(path);
+
+        /*_recv_display->add_to_all(path, _all_bitrate_display.get());
+        _medooze_display->add_to_all(path, _all_bitrate_display.get());
+        _qlog_display->add_to_all(path, _all_bitrate_display.get());
+        _all_bitrate_display->load(path);*/
     }
     else {
         _recv_display->unload(path);
         _medooze_display->unload(path);
         _qlog_display->unload(path);
+        _all_bitrate_display->unload(path);
     }
 }
 
@@ -108,6 +114,30 @@ void MainWindow::on_screenshot()
     _recv_display->save(dir);
     _medooze_display->save(dir);
     _qlog_display->save(dir);
+}
+
+void MainWindow::on_ratio_1_0_7()
+{
+    _recv_display->set_geometry(1, 0.7);
+    _medooze_display->set_geometry(1, 0.7);
+    _qlog_display->set_geometry(1, 0.7);
+    _all_bitrate_display->set_geometry(1, 0.7);
+}
+
+void MainWindow::on_ratio_1_1()
+{
+    _recv_display->set_geometry(1, 1);
+    _all_bitrate_display->set_geometry(1, 1);
+    _medooze_display->set_geometry(1, 1);
+    _qlog_display->set_geometry(1, 1);
+}
+
+void MainWindow::on_ratio_2_1()
+{
+    _recv_display->set_geometry(1, 0.5);
+    _all_bitrate_display->set_geometry(1, 0.5);
+    _medooze_display->set_geometry(1, 0.5);
+    _qlog_display->set_geometry(1, 0.5);
 }
 
 MainWindow::~MainWindow()

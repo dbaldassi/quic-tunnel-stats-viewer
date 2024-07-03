@@ -69,6 +69,33 @@ void StatsLineChartView::mouseReleaseEvent(QMouseEvent *event)
     QChartView::mouseReleaseEvent(event);
 }
 
+void StatsLineChartView::resizeEvent(QResizeEvent* event)
+{
+    QChart * c = chart();
+
+    if(!c) return;
+
+    auto geometry = c->geometry();
+    // geometry.setHeight(geometry.width() * 0.7);
+    // QChartView::setGeometry(geometry.x(), geometry.y(), geometry.width(), geometry.height() * 0.7);
+
+    c->legend()->setGeometry(geometry);
+    c->setPlotArea(QRectF());
+    QChartView::resizeEvent(event);
+    // QChartView::setGeometry(geometry.x(), geometry.y(), geometry.width(), geometry.height() * 0.7);
+
+    auto area = chart()->plotArea();
+    area.setRect(area.x(), area.y() + 200, area.width(), area.height() - 200);
+    c->setPlotArea(area);
+
+    auto axes = chart()->axes(Qt::Vertical);
+    if(!axes.empty()) {
+        axes.front()->setVisible(false);
+        axes.front()->setVisible(true);
+    }
+
+    // QChartView::resizeEvent(event);
+}
 
 StatsLineChart::StatsLineChart(QGraphicsItem *parent, Qt::WindowFlags wFlags)
     : QChart(QChart::ChartTypeCartesian, parent, wFlags)
