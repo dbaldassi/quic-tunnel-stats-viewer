@@ -88,14 +88,14 @@ void MainWindow::on_exp_changed(QTreeWidgetItem* item, int column)
     path /= item->text(0).toStdString();
 
     if(item->checkState(0) == Qt::Checked) {
-       // _recv_display->load(path);
+        // _recv_display->load(path);
         _medooze_display->load(path);
-        // _qlog_display->load(path);
+        _qlog_display->load(path);
 
-        /*_recv_display->add_to_all(path, _all_bitrate_display.get());
+        // _recv_display->add_to_all(path, _all_bitrate_display.get());
         _medooze_display->add_to_all(path, _all_bitrate_display.get());
         _qlog_display->add_to_all(path, _all_bitrate_display.get());
-        _all_bitrate_display->load(path);*/
+        _all_bitrate_display->load(path);
     }
     else {
         _recv_display->unload(path);

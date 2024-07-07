@@ -7,6 +7,7 @@
 #include <QVBoxLayout>
 #include <QTreeWidgetItem>
 #include <QValueAxis>
+#include <QLogValueAxis>
 
 #include "qlog_display.h"
 #include "stats_line_chart.h"
@@ -176,12 +177,12 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
 
 
                 if(data.contains("congestion_window")) {
-                    QPointF p_cwnd{time, data["congestion_window"].get<float>()};
+                    QPointF p_cwnd{time, data["congestion_window"].get<float>() / 1000.};
                     add_point(key.c_str(), StatKey::CWND, p_cwnd);
                 }
 
                 if(data.contains("bytes_in_flight")) {
-                    QPointF p_bif{time, data["bytes_in_flight"].get<float>()};
+                    QPointF p_bif{time, data["bytes_in_flight"].get<float>() / 1000.};
                     add_point(key.c_str(), StatKey::BYTES_IN_FLIGHT, p_bif);
                 }
 
@@ -288,7 +289,7 @@ void QlogDisplay::load_exp(const fs::path& p)
     _chart_rtt->createDefaultAxes();
 
     // auto& map = _path_keys[p.c_str()];
-    auto* serie = std::get<StatsKeyProperty::SERIE>(map[StatKey::LOSS]);
+    /*auto* serie = std::get<StatsKeyProperty::SERIE>(map[StatKey::LOSS]);
 
     auto loss_axis = new QValueAxis();
     _chart_bitrate->addAxis(loss_axis, Qt::AlignRight);
@@ -301,7 +302,7 @@ void QlogDisplay::load_exp(const fs::path& p)
 
     auto axis = serie->attachedAxes();
     serie->detachAxis(axis.back());
-    serie->attachAxis(loss_axis);
+    serie->attachAxis(loss_axis);*/
 }
 
 void QlogDisplay::load_average(const fs::path& p)
@@ -406,10 +407,10 @@ void QlogDisplay::save(const fs::path& dir)
 void QlogDisplay::add_to_all(const fs::path& dir, AllBitrateDisplay* all)
 {
     auto& map = _path_keys[dir.c_str()];
-    all->add_stats(dir, AllBitrateDisplay::CWND, map[CWND]);
+    // all->add_stats(dir, AllBitrateDisplay::CWND, map[CWND]);
     // all->add_stats(dir, AllBitrateDisplay::BYTES_IN_FLIGHT, map[BYTES_IN_FLIGHT]);
-    // all->add_stats(dir, AllBitrateDisplay::QUIC_RTT, map[RTT]);
-    all->add_stats(dir, AllBitrateDisplay::QUIC_LOSS, map[LOSS]);
+    all->add_stats(dir, AllBitrateDisplay::QUIC_RTT, map[RTT]);
+    // all->add_stats(dir, AllBitrateDisplay::QUIC_LOSS, map[LOSS]);
 }
 
 void QlogDisplay::set_geometry(float ratio_w, float ratio_h)

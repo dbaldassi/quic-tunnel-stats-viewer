@@ -41,6 +41,7 @@ void MedoozeDisplay::init_map(StatMap& map, bool signal)
     map[StatKey::TOTAL] = std::make_tuple("Total", nullptr, _chart_bitrate, ExpInfo{});
     map[StatKey::RECEIVED_BITRATE] = std::make_tuple("Received bitrate", nullptr, _chart_bitrate, ExpInfo{});
     map[StatKey::FBDELAY] = std::make_tuple("Feedback delay", nullptr, _chart_rtt, ExpInfo{});
+    map[StatKey::LOSS_ACCUMULATED] = std::make_tuple("Loss accumulated", nullptr, _chart_rtt, ExpInfo{});
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
@@ -205,6 +206,7 @@ void MedoozeDisplay::load_exp(const fs::path& p)
     create_serie(p, StatKey::TOTAL);
     create_serie(p, StatKey::RECEIVED_BITRATE);
     create_serie(p, StatKey::LOSS);
+    create_serie(p, StatKey::LOSS_ACCUMULATED);
 
     Info info;
 
@@ -233,6 +235,9 @@ void MedoozeDisplay::load_exp(const fs::path& p)
         accu_total.accumulate(sent_time, packet_size * 8);
         accu_loss.accumulate(sent_time, ((sent_time > 0 && recv_ts == 0) ? 1 : 0));
         accu_received.accumulate(sent_time, ((sent_time > 0 && recv_ts == 0) ? 0 : packet_size * 8));
+
+        QPointF loss_pt(timestamp, info.loss.loss);
+        add_point(p.c_str(), StatKey::LOSS_ACCUMULATED, loss_pt);
     }
 
     auto& map = _path_keys[p.c_str()];
@@ -254,6 +259,7 @@ void MedoozeDisplay::load_exp(const fs::path& p)
     process(item, info.minrtt, p.c_str(), StatKey::MINRTT, accu_minrtt.get_points());
     process(item, info.loss, p.c_str(), StatKey::LOSS, accu_loss.get_points());
     process(item, info.received, p.c_str(), StatKey::RECEIVED_BITRATE, accu_received.get_points());
+    // add_serie(p.c_str(), StatKey::LOSS_ACCUMULATED);
 
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
@@ -425,10 +431,11 @@ void MedoozeDisplay::add_to_all(const fs::path& dir, AllBitrateDisplay* all)
     // all->add_stats(dir, AllBitrateDisplay::TARGET, map[TARGET]);
     // all->add_stats(dir, AllBitrateDisplay::PROBING, map[PROBING]);
     // all->add_stats(dir, AllBitrateDisplay::MEDIA, map[MEDIA]);
-    all->add_stats(dir, AllBitrateDisplay::TOTAL, map[TOTAL]);
+    // all->add_stats(dir, AllBitrateDisplay::TOTAL, map[TOTAL]);
     // all->add_stats(dir, AllBitrateDisplay::RTX, map[RTX]);
-    // all->add_stats(dir, AllBitrateDisplay::MEDOOZE_RTT, map[RTT]);
-    all->add_stats(dir, AllBitrateDisplay::MEDOOZE_LOSS, map[LOSS]);
+    all->add_stats(dir, AllBitrateDisplay::MEDOOZE_RTT, map[RTT]);
+    // all->add_stats(dir, AllBitrateDisplay::MEDOOZE_LOSS, map[LOSS]);
+    // all->add_stats(dir, AllBitrateDisplay::MEDOOZE_LOSS, map[LOSS_ACCUMULATED]);
 }
 
 void MedoozeDisplay::set_geometry(float ratio_w, float ratio_h)

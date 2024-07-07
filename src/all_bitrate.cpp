@@ -70,6 +70,12 @@ void AllBitrateDisplay::add_stats(const fs::path& path, StatKey key, std::tuple<
     else if(key == MEDOOZE_LOSS) {
         std::get<StatsKeyProperty::NAME>(map[key]) = "Medooze Loss";
     }
+    else if(key == QUIC_RTT) {
+        std::get<StatsKeyProperty::NAME>(map[key]) = "Quic RTT";
+    }
+    else if(key == MEDOOZE_RTT) {
+        std::get<StatsKeyProperty::NAME>(map[key]) = "Medooze RTT";
+    }
     else if(key == TOTAL) {
         std::get<StatsKeyProperty::NAME>(map[key]) = "Medooze sent";
     }
@@ -82,8 +88,15 @@ void AllBitrateDisplay::add_stats(const fs::path& path, StatKey key, std::tuple<
     auto old_serie = std::get<StatsKeyProperty::SERIE>(s);
 
     auto pts = old_serie->points();
+    int y_loss = 0;
     for(auto pt : pts) {
-        if(key == StatKey::CWND) pt.setY(pt.y() * 8. / 1000.);
+        // if(key == StatKey::CWND) pt.setY(pt.y() * 8. / 1000.);
+        if(key == StatKey::QUIC_RTT) pt.setY(pt.y() / 1000.);
+        /*if(key == StatKey::MEDOOZE_LOSS) {
+            y_loss += pt.y();
+            pt.setY(y_loss);
+        }*/
+
         add_point(path.c_str(), key, pt);
     }
 }
@@ -101,7 +114,7 @@ void AllBitrateDisplay::load(const fs::path& path)
 
     _chart->createDefaultAxes();
 
-    auto loss_axis = new QValueAxis();
+    /*auto loss_axis = new QValueAxis();
     _chart->addAxis(loss_axis, Qt::AlignRight);
 
     auto* quic_loss_serie = std::get<StatsKeyProperty::SERIE>(map[StatKey::QUIC_LOSS]);
@@ -123,7 +136,7 @@ void AllBitrateDisplay::load(const fs::path& path)
 
     axis = medooze_loss_serie->attachedAxes();
     medooze_loss_serie->detachAxis(axis.back());
-    medooze_loss_serie->attachAxis(loss_axis);
+    medooze_loss_serie->attachAxis(loss_axis);*/
 
     QFont font1, font2;
     font1.setPointSize(36);
@@ -141,8 +154,8 @@ void AllBitrateDisplay::load(const fs::path& path)
 
     axe = _chart->axes(Qt::Vertical);
     if(!axe.empty()) {
-        axe.front()->setTitleText("Bitrate (kbps)");
-        axe.back()->setTitleText("Losses");
+        axe.front()->setTitleText("Rtt (ms)");
+        // axe.back()->setTitleText("Losses");
 
         for(auto& a : axe) {
             a->setTitleFont(font1);

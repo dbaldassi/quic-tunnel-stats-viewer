@@ -58,7 +58,8 @@ public:
         MINRTT,
         FBDELAY,
         TOTAL,
-        RECEIVED_BITRATE
+        RECEIVED_BITRATE,
+        LOSS_ACCUMULATED
     };
 
     struct Info

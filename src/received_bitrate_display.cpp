@@ -218,7 +218,7 @@ void ReceivedBitrateDisplay::add_to_all(const fs::path& dir, AllBitrateDisplay* 
 {
     auto& map = _path_keys[dir.c_str()];
     // all->add_stats(dir, AllBitrateDisplay::LINK, map[LINK]);
-    all->add_stats(dir, AllBitrateDisplay::BITRATE, map[BITRATE]);
+    // all->add_stats(dir, AllBitrateDisplay::BITRATE, map[BITRATE]);
     // all->add_stats(dir, AllBitrateDisplay::QUIC_SENT, map[QUIC_SENT]);
 }
 
