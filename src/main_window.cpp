@@ -28,6 +28,14 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->action2_1, &QAction::triggered, this, &MainWindow::on_ratio_2_1);
 }
 
+void MainWindow::keyPressEvent(QKeyEvent * event)
+{
+    _recv_display->on_keyboard_event(event);
+    _medooze_display->on_keyboard_event(event);
+    _qlog_display->on_keyboard_event(event);
+    // _all_bitrate_display->on_keyboard_event(event);
+}
+
 void MainWindow::set_stats_dir(std::string dir)
 {
     _stats_dir = std::move(dir);
@@ -88,11 +96,11 @@ void MainWindow::on_exp_changed(QTreeWidgetItem* item, int column)
     path /= item->text(0).toStdString();
 
     if(item->checkState(0) == Qt::Checked) {
-        // _recv_display->load(path);
+        _recv_display->load(path);
         _medooze_display->load(path);
         _qlog_display->load(path);
 
-        // _recv_display->add_to_all(path, _all_bitrate_display.get());
+        _recv_display->add_to_all(path, _all_bitrate_display.get());
         _medooze_display->add_to_all(path, _all_bitrate_display.get());
         _qlog_display->add_to_all(path, _all_bitrate_display.get());
         _all_bitrate_display->load(path);

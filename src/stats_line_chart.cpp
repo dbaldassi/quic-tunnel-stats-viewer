@@ -8,6 +8,8 @@ StatsLineChartView::StatsLineChartView(QChart *chart, QWidget *parent)
 
 void StatsLineChartView::keyPressEvent(QKeyEvent *event)
 {
+    for(auto&& ev : _key_event)  ev(event);
+
     switch (event->key()) {
     case Qt::Key_Plus:
         chart()->zoomIn();

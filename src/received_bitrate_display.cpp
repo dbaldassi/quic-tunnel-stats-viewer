@@ -26,6 +26,19 @@ ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout
     layout->addWidget(_chart_view_fps, 1);
 
     create_legend();
+
+}
+
+void ReceivedBitrateDisplay::on_keyboard_event(QKeyEvent* key)
+{
+    if(key->key() == Qt::Key_1) {
+        if(_chart_view_fps->isHidden()) _chart_view_fps->show();
+        else _chart_view_fps->hide();
+    }
+    else if(key->key() == Qt::Key_2) {
+        if(_chart_view_bitrate->isHidden()) _chart_view_bitrate->show();
+        else _chart_view_bitrate->hide();
+    }
 }
 
 void ReceivedBitrateDisplay::init_map(StatMap& map, bool signal)
@@ -152,13 +165,13 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
         _infos_array[StatKey::QUIC_SENT].mean /= sum;
         _infos_array[StatKey::QUIC_SENT].variance = (_infos_array[StatKey::QUIC_SENT].variance / sum) - ( _infos_array[StatKey::QUIC_SENT].mean *  _infos_array[StatKey::QUIC_SENT].mean);
 
-        /*QTreeWidgetItem * quic_mean = new QTreeWidgetItem(item);
+        QTreeWidgetItem * quic_mean = new QTreeWidgetItem(item);
         quic_mean->setText(0, "QUIC sent mean");
         quic_mean->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].mean));
 
         QTreeWidgetItem * quic_variance = new QTreeWidgetItem(item);
         quic_variance->setText(0, "QUIC sent variance");
-        quic_variance->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].variance));*/
+        quic_variance->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].variance));
     }
 
     _chart_bitrate->createDefaultAxes();
@@ -200,8 +213,7 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
         axe.front()->setLabelsFont(font2);
     }
 
-    _chart_view_fps->hide();
-
+    // _chart_view_fps->hide();
     // _chart_view_bitrate->setGeometry(0,0,1,1);
 }
 

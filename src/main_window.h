@@ -28,6 +28,9 @@ public:
     void set_stats_dir(std::string dir);
     void load();
 
+protected:
+    void keyPressEvent(QKeyEvent *) override;
+
 private:
     Ui::MainWindow *ui;
 

@@ -143,6 +143,8 @@ public:
     void add_to_all(const fs::path& dir, AllBitrateDisplay* all);
     void set_geometry(float ratio_w, float ratio_h);
 
+    void on_keyboard_event(QKeyEvent* key);
+
 signals:
     void on_loss_stats(const fs::path& path, int loss, int sent);
 };

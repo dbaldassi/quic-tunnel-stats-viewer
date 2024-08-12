@@ -36,6 +36,18 @@ QlogDisplay::QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend,
     create_legend();
 }
 
+void QlogDisplay::on_keyboard_event(QKeyEvent* key)
+{
+    if(key->key() == Qt::Key_1) {
+        if(_chart_view_rtt->isHidden()) _chart_view_rtt->show();
+        else _chart_view_rtt->hide();
+    }
+    else if(key->key() == Qt::Key_2) {
+        if(_chart_view_bitrate->isHidden()) _chart_view_bitrate->show();
+        else _chart_view_bitrate->hide();
+    }
+}
+
 void QlogDisplay::init_map(StatMap& map, bool signal)
 {
     map[StatKey::CWND] = std::make_tuple("Cwnd", nullptr, _chart_bitrate, ExpInfo{.stream = false});

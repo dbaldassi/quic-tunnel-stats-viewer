@@ -67,6 +67,7 @@ public:
     void load(const fs::path& path) override;
 
     void save(const fs::path& dir) override;
+    void on_keyboard_event(QKeyEvent * event);
 
     void set_geometry(float ratio_w, float ratio_h);
 };
