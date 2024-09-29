@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QLineSeries>
 #include <QChart>
+#include <QWidget>
 
 #include "display_base.h"
 
@@ -23,6 +24,16 @@ class QVBoxLayout;
 class QTreeWidget;
 class AllBitrateDisplay;
 
+
+class DistributionWidget : public QWidget
+{
+public:
+    explicit DistributionWidget(QLineSeries* serie, QWidget * parent = nullptr);
+    ~DistributionWidget() = default;
+
+    void closeEvent(QCloseEvent* event) override;
+};
+
 class QlogDisplay : public QObject, public DisplayBase
 {
     Q_OBJECT
@@ -32,7 +43,8 @@ class QlogDisplay : public QObject, public DisplayBase
         BYTES_IN_FLIGHT,
         CWND,
         RTT,
-        LOSS
+        LOSS,
+        DISTRIBUTION
     };
 
     struct Info {

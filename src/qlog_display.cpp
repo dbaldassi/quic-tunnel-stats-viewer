@@ -38,13 +38,23 @@ QlogDisplay::QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend,
 
 void QlogDisplay::on_keyboard_event(QKeyEvent* key)
 {
-    if(key->key() == Qt::Key_1) {
+    switch(key->key()) {
+    case Qt::Key_1:
         if(_chart_view_rtt->isHidden()) _chart_view_rtt->show();
         else _chart_view_rtt->hide();
-    }
-    else if(key->key() == Qt::Key_2) {
+        break;
+    case Qt::Key_2:
         if(_chart_view_bitrate->isHidden()) _chart_view_bitrate->show();
         else _chart_view_bitrate->hide();
+        break;
+    case Qt::Key_R: {
+        for(auto& map : _path_keys) {
+            // auto& map = _path_keys[p.c_str()];
+            auto w = new DistributionWidget(std::get<StatsKeyProperty::SERIE>(map[StatKey::DISTRIBUTION]));
+            w->show();
+        }
+    }
+        break;
     }
 }
 
@@ -119,14 +129,15 @@ void QlogDisplay::parse_mvfst(const fs::path& path)
 
             if(name == "recovery:metrics_updated") {
                 try {
-
                     auto data = event["data"];
 
                     QPointF p_cwnd{time/1000000.f, data["congestion_window"].get<float>() / 1000.f};
                     QPointF p_bif{time/1000000.f, data["bytes_in_flight"].get<float>() / 1000.f};
+                    QPointF p_distrib{time/1000000.f, p_cwnd.y() / p_bif.y()};
 
                     add_point(key.c_str(), StatKey::CWND, p_cwnd);
                     add_point(key.c_str(), StatKey::BYTES_IN_FLIGHT, p_bif);
+                    add_point(key.c_str(), StatKey::DISTRIBUTION, p_distrib);
                 } catch(...) { }
 
                 try {
@@ -187,15 +198,18 @@ void QlogDisplay::parse_quicgo(const fs::path& path)
             if(name == "recovery:metrics_updated") {
                 auto data = line_json["data"];
 
-
+                QPointF p_cwnd;
                 if(data.contains("congestion_window")) {
-                    QPointF p_cwnd{time, data["congestion_window"].get<float>() / 1000.};
+                    p_cwnd = QPointF{time, data["congestion_window"].get<float>() / 1000.};
                     add_point(key.c_str(), StatKey::CWND, p_cwnd);
                 }
 
                 if(data.contains("bytes_in_flight")) {
                     QPointF p_bif{time, data["bytes_in_flight"].get<float>() / 1000.};
                     add_point(key.c_str(), StatKey::BYTES_IN_FLIGHT, p_bif);
+
+                    QPointF p_distrib{time/1000000.f, p_cwnd.y() / p_bif.y()};
+                    add_point(key.c_str(), StatKey::DISTRIBUTION, p_distrib);
                 }
 
                 if(data.contains("latest_rtt")) {
@@ -264,6 +278,7 @@ void QlogDisplay::load_exp(const fs::path& p)
     create_serie(p, StatKey::CWND);
     create_serie(p, StatKey::RTT);
     create_serie(p, StatKey::LOSS);
+    create_serie(p, StatKey::DISTRIBUTION);
 
     auto impl = path.parent_path().filename().string();
 
@@ -404,7 +419,7 @@ void QlogDisplay::load(const fs::path& p)
         it->setGridLineVisible(false);
     }
 
-    _chart_view_rtt->hide();
+    // _chart_view_rtt->hide();
 }
 
 void QlogDisplay::save(const fs::path& dir)
@@ -438,4 +453,81 @@ void QlogDisplay::set_geometry(float ratio_w, float ratio_h)
     }
 
     _chart_view_bitrate->setGeometry(g);
+}
+
+int count_above(QList<QPointF> list, float coeff)
+{
+    int c = 0;
+
+    for(auto& pt : list) {
+        if(pt.y() >= coeff) ++c;
+    }
+
+    return c;
+}
+
+DistributionWidget::DistributionWidget(QLineSeries* s, QWidget* parent) : QWidget(parent)
+{
+    std::array<float, 10> coeffs{1000, 100, 50, 20, 10, 8, 5, 2, 1, 0.5};
+
+    QLineSeries* serie = new QLineSeries(s);
+    QList<QPointF> pts = s->points();
+
+    for(float coeff : coeffs) {
+        int count = count_above(pts, coeff);
+        QPointF pt(coeff, count * 100. / pts.size());
+
+        qInfo() << coeff << " " << count << " " << pts.size();
+
+        auto pts_tmp = serie->points();
+        if(!pts_tmp.empty()) {
+            auto p = pts_tmp.last();
+            p.setX(coeff);
+            serie->append(p);
+        }
+        else {
+            serie->append(QPointF(coeff, 0));
+        }
+
+        serie->append(pt);
+    }
+
+    QChart *chart = new StatsLineChart();
+    // chart->legend()->hide();
+    chart->setAnimationOptions(QChart::SeriesAnimations);
+    chart->addSeries(serie);
+    // chart->createDefaultAxes();
+    chart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    chart->setTitle("cwnd above bytes in flight repartition");
+
+    auto axisX = new QLogValueAxis;
+    axisX->setTitleText("Coeff");
+    axisX->setLabelFormat("%i");
+    axisX->setBase(10.0);
+    axisX->setReverse(true);
+    // axisX->
+    chart->addAxis(axisX, Qt::AlignBottom);
+    serie->attachAxis(axisX);
+
+    auto axisY = new QValueAxis;
+    axisY->setTitleText("Percent");
+    axisY->setLabelFormat("%g");
+    axisY->setTickCount(serie->count());
+    axisY->setMinorTickCount(-1);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    serie->attachAxis(axisY);
+
+    QChartView *chart_view = new StatsLineChartView(chart);
+    chart_view->setRenderHint(QPainter::Antialiasing);
+    chart_view->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    auto layout = new QVBoxLayout(this);
+    layout->addWidget(chart_view);
+
+    setLayout(layout);
+}
+
+void DistributionWidget::closeEvent(QCloseEvent* event)
+{
+    deleteLater();
 }
