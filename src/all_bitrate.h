@@ -67,7 +67,7 @@ public:
     AllBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info);
     ~AllBitrateDisplay();
 
-    void add_stats(const fs::path&, StatKey key, std::tuple<QString, QLineSeries*, QChart*, ExpInfo> s);
+    void add_stats(const fs::path&, StatKey key, std::tuple<QString, QAbstractSeries*, QChart*, ExpInfo> s);
 
     void create_legend(const fs::path& p, bool signal = true);
 

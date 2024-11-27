@@ -5,6 +5,7 @@
 #include <QLineSeries>
 #include <QVBoxLayout>
 #include <QTreeWidgetItem>
+#include <QBoxPlotSeries>
 
 #include "csv_reader.h"
 #include "stats_line_chart.h"
@@ -52,6 +53,10 @@ void ReceivedBitrateDisplay::init_map(StatMap& map, bool signal)
     map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", nullptr, nullptr, ExpInfo{});
     map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", nullptr, _chart_bitrate, ExpInfo{});
 
+    map[StatKey::BITRATE_INTERQUARTILE] = std::make_tuple("bitrate interquartile", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::BITRATE_BOX] = std::make_tuple("bitrate box", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::FPS_BOX] = std::make_tuple("fps box", nullptr, _chart_fps, ExpInfo{});
+
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
             StatKey key = static_cast<StatKey>(item->data(1).toUInt());
@@ -65,9 +70,7 @@ void ReceivedBitrateDisplay::init_map(StatMap& map, bool signal)
     }
 }
 
-// bitrate.csv : time, bitrate, link, fps, frame_dropped, frame_decoded, frame_keydecoded, frame_rendered
-// quic.csv : time, bitrate
-void ReceivedBitrateDisplay::load(const fs::path& p)
+void ReceivedBitrateDisplay::load_exp(const fs::path& p)
 {
     fs::path path = p / "bitrate.csv";
 
@@ -173,6 +176,88 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
         quic_variance->setText(0, "QUIC sent variance");
         quic_variance->setText(1, QString::number(_infos_array[StatKey::QUIC_SENT].variance));
     }
+}
+
+template<typename T>
+bool ReceivedBitrateDisplay::get_stats(const fs::path& p, std::ifstream& ifs, std::vector<StatLinePoint<T>>& tab, StatKey key)
+{
+    tab.emplace_back(StatLinePoint<T>{});
+    if(!get_csv_line(ifs, tab)) {
+        tab.pop_back();
+        return false;
+    }
+
+    StatKey key_box, key_inter;
+    switch(key) {
+    case StatKey::BITRATE:
+        key_box = StatKey::BITRATE_BOX;
+        key_inter= StatKey::BITRATE_INTERQUARTILE;
+        break;
+    case StatKey::FPS:
+        key_box = StatKey::FPS_BOX;
+        key_inter = StatKey::FPS_INTERQUARTILE;
+        break;
+    case StatKey::LINK: {
+        QPoint pt{tab.back().time, tab.back().values.front()};
+        add_point(p.c_str(), key, pt);
+        return true;
+    }
+    default:
+        return false;
+    }
+
+    QPointF avg{(double)tab.back().time, get_average(tab.back().values)};
+    QPointF inter{(double)tab.back().time, get_interquartile_average(tab.back().values)};
+
+    add_point(p.c_str(), key, avg);
+    add_point(p.c_str(), key_inter, inter);
+    add_point(p.c_str(), key_box, QString::number(tab.back().time), tab.back().values);
+
+    return true;
+}
+
+void ReceivedBitrateDisplay::load_stat_line(const fs::path& p)
+{
+    fs::path file = p / "bitrate_line.csv";
+
+    std::ifstream ifs(file.c_str());
+    if(!ifs.is_open()) {
+        throw std::runtime_error("Could not open csv file with provided path : " + file.string());
+    }
+
+    if(_path_keys.empty()) create_serie(p, StatKey::LINK);
+
+    create_serie(p, StatKey::BITRATE);
+    create_serie(p, StatKey::BITRATE_INTERQUARTILE);
+    create_serie<QBoxPlotSeries>(p, StatKey::BITRATE_BOX);
+
+    create_serie(p, StatKey::FPS);
+    create_serie(p, StatKey::FPS_INTERQUARTILE);
+    create_serie<QBoxPlotSeries>(p, StatKey::FPS_BOX);
+
+    std::vector<StatLinePoint<int>> bitrate;
+    std::vector<StatLinePoint<int>> fps;
+    std::vector<StatLinePoint<int>> link;
+
+    while(!ifs.eof()) {
+        if(!get_stats(p, ifs, link, StatKey::LINK)) break;
+        get_stats(p, ifs, bitrate, StatKey::BITRATE);
+        get_stats(p, ifs, fps, StatKey::FPS);
+    }
+
+    add_serie(p.c_str(), StatKey::LINK);
+    add_serie(p.c_str(), StatKey::BITRATE);
+    add_serie(p.c_str(), StatKey::BITRATE_INTERQUARTILE);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::BITRATE_BOX);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::FPS_BOX);
+}
+
+// bitrate.csv : time, bitrate, link, fps, frame_dropped, frame_decoded, frame_keydecoded, frame_rendered
+// quic.csv : time, bitrate
+void ReceivedBitrateDisplay::load(const fs::path& p)
+{
+    if(p.filename().string() == "average") load_stat_line(p);
+    else load_exp(p);
 
     _chart_bitrate->createDefaultAxes();
     _chart_fps->createDefaultAxes();

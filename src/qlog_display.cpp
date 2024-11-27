@@ -50,7 +50,8 @@ void QlogDisplay::on_keyboard_event(QKeyEvent* key)
     case Qt::Key_R: {
         for(auto& map : _path_keys) {
             // auto& map = _path_keys[p.c_str()];
-            auto w = new DistributionWidget(std::get<StatsKeyProperty::SERIE>(map[StatKey::DISTRIBUTION]));
+            auto serie = static_cast<QLineSeries*>(std::get<StatsKeyProperty::SERIE>(map[StatKey::DISTRIBUTION]));
+            auto w = new DistributionWidget(serie);
             w->show();
         }
     }
@@ -64,6 +65,14 @@ void QlogDisplay::init_map(StatMap& map, bool signal)
     map[StatKey::BYTES_IN_FLIGHT] = std::make_tuple("Bytes in flight", nullptr, _chart_bitrate, ExpInfo{.stream = false});
     map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{.stream = false});
     map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{.stream = false});
+
+    map[StatKey::CWND_BOX] = std::make_tuple("Cwnd box", nullptr, _chart_bitrate, ExpInfo{.stream = false});
+    map[StatKey::BYTES_IN_FLIGHT_BOX] = std::make_tuple("Bytes in flight box", nullptr, _chart_bitrate, ExpInfo{.stream = false});
+    map[StatKey::RTT_BOX] = std::make_tuple("RTT box", nullptr, _chart_rtt, ExpInfo{.stream = false});
+
+    map[StatKey::CWND_INTERQUARTILE] = std::make_tuple("Cwnd interquartile", nullptr, _chart_bitrate, ExpInfo{.stream = false});
+    map[StatKey::BYTES_IN_FLIGHT_INTERQUARTILE] = std::make_tuple("Bytes in flight interquartile", nullptr, _chart_bitrate, ExpInfo{.stream = false});
+    map[StatKey::RTT_INTERQUARTILE] = std::make_tuple("RTT interquartile", nullptr, _chart_rtt, ExpInfo{.stream = false});
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
@@ -374,9 +383,83 @@ void QlogDisplay::load_average(const fs::path& p)
     emit on_loss_stats(p, info.lost, info.sent);
 }
 
+template<typename T>
+bool QlogDisplay::get_stats(const fs::path& p, std::ifstream& ifs, std::vector<StatLinePoint<T>>& tab, StatKey key)
+{
+    tab.emplace_back(StatLinePoint<T>{});
+    if(!get_csv_line(ifs, tab)) {
+        tab.pop_back();
+        return false;
+    }
+
+    QPointF avg{(double)tab.back().time, get_average(tab.back().values)};
+
+    StatKey key_box;
+    switch(key) {
+    case StatKey::CWND:
+        key_box = StatKey::CWND_BOX;
+        break;
+    case StatKey::BYTES_IN_FLIGHT:
+        key_box = StatKey::BYTES_IN_FLIGHT_BOX;
+        break;
+    case StatKey::RTT:
+        key_box = StatKey::RTT_BOX;
+        break;
+    default:
+        return false;
+    }
+
+    add_point(p.c_str(), key, avg);
+    add_point(p.c_str(), key_box, QString::number(tab.back().time), tab.back().values);
+
+    return true;
+}
+
+void QlogDisplay::load_stats_line(const fs::path& p)
+{
+    fs::path file = p / "stats_line_qlog.csv";
+
+    std::ifstream ifs(file.c_str());
+    if(!ifs.is_open()) return; // in case of datagrams
+
+    create_serie(p, StatKey::CWND);
+    create_serie(p, StatKey::BYTES_IN_FLIGHT);
+    create_serie(p, StatKey::RTT);
+
+    create_serie(p, StatKey::CWND_INTERQUARTILE);
+    create_serie(p, StatKey::RTT_INTERQUARTILE);
+    create_serie(p, StatKey::BYTES_IN_FLIGHT_INTERQUARTILE);
+
+    create_serie<QBoxPlotSeries>(p, StatKey::CWND_BOX);
+    create_serie<QBoxPlotSeries>(p, StatKey::BYTES_IN_FLIGHT_BOX);
+    create_serie<QBoxPlotSeries>(p, StatKey::RTT_BOX);
+
+    std::vector<StatLinePoint<double>> cwnd;
+    std::vector<StatLinePoint<double>> bif;
+    std::vector<StatLinePoint<double>> rtt;
+
+    while(!ifs.eof()) {
+        if(!get_stats(p, ifs, cwnd, StatKey::CWND)) break;
+
+        get_stats(p, ifs, bif, StatKey::BYTES_IN_FLIGHT);
+        get_stats(p, ifs, rtt, StatKey::RTT);
+    }
+
+    add_serie(p.c_str(), StatKey::CWND);
+    add_serie(p.c_str(), StatKey::BYTES_IN_FLIGHT);
+    add_serie(p.c_str(), StatKey::RTT);
+
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::CWND_BOX);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::BYTES_IN_FLIGHT_BOX);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::RTT_BOX);
+
+    _chart_bitrate->createDefaultAxes();
+    _chart_rtt->createDefaultAxes();
+}
+
 void QlogDisplay::load(const fs::path& p)
 {
-    if(p.filename().string() == "average") load_average(p);
+    if(p.filename().string() == "average") load_stats_line(p); // load_average(p);
     else load_exp(p);
 
     QFont font1, font2;

@@ -59,7 +59,15 @@ public:
         FBDELAY,
         TOTAL,
         RECEIVED_BITRATE,
-        LOSS_ACCUMULATED
+        LOSS_ACCUMULATED,
+
+        MEDIA_BOX,
+        RTT_BOX,
+        TARGET_BOX,
+
+        MEDIA_INTERQUARTILE,
+        RTT_INTERQUARTILE,
+        TARGET_INTERQUARTILE,
     };
 
     struct Info
@@ -109,6 +117,11 @@ public:
         Stats received{"received"};
         StatsLoss loss{"loss"};
     };
+
+    void load_stat_line(const fs::path& p);
+
+    template<typename T>
+    bool get_stats(const fs::path& p, std::ifstream& ifs, std::vector<StatLinePoint<T>>& tab, StatKey key);
 
  private:
 

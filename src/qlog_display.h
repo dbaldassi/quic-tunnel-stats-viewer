@@ -44,7 +44,17 @@ class QlogDisplay : public QObject, public DisplayBase
         CWND,
         RTT,
         LOSS,
-        DISTRIBUTION
+        DISTRIBUTION,
+
+        CWND_BOX,
+        RTT_BOX,
+        BYTES_IN_FLIGHT_BOX,
+
+        CWND_INTERQUARTILE,
+        RTT_INTERQUARTILE,
+        BYTES_IN_FLIGHT_INTERQUARTILE,
+
+        NUM_KEYS
     };
 
     struct Info {
@@ -66,6 +76,10 @@ class QlogDisplay : public QObject, public DisplayBase
 
     void load_average(const fs::path& path);
     void load_exp(const fs::path& path);
+    void load_stats_line(const fs::path& path);
+
+    template<typename T>
+    bool get_stats(const fs::path& p, std::ifstream& ifs, std::vector<StatLinePoint<T>>& tab, StatKey key);
 
 public:
     QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info_widget);

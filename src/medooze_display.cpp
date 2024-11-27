@@ -55,6 +55,14 @@ void MedoozeDisplay::init_map(StatMap& map, bool signal)
     map[StatKey::FBDELAY] = std::make_tuple("Feedback delay", nullptr, _chart_rtt, ExpInfo{});
     map[StatKey::LOSS_ACCUMULATED] = std::make_tuple("Loss accumulated", nullptr, _chart_rtt, ExpInfo{});
 
+    map[StatKey::MEDIA_BOX] = std::make_tuple("Media box", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::TARGET_BOX] = std::make_tuple("Target box", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::RTT_BOX] = std::make_tuple("rtt box", nullptr, _chart_rtt, ExpInfo{});
+
+    map[StatKey::MEDIA_INTERQUARTILE] = std::make_tuple("Media interquartile", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::TARGET_INTERQUARTILE] = std::make_tuple("Target interquatile", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::RTT_INTERQUARTILE] = std::make_tuple("rtt interquartile", nullptr, _chart_rtt, ExpInfo{});
+
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
             StatKey key = static_cast<StatKey>(item->data(1).toUInt());
@@ -383,9 +391,105 @@ void MedoozeDisplay::load_average(const fs::path& p)
     emit on_loss_stats(p, info.loss.loss, info.loss.sent);
 }
 
+template<typename T>
+bool MedoozeDisplay::get_stats(const fs::path& p, std::ifstream& ifs, std::vector<StatLinePoint<T>>& tab, StatKey key)
+{
+    tab.emplace_back(StatLinePoint<T>{});
+    if(!get_csv_line(ifs, tab)) {
+        tab.pop_back();
+        return false;
+    }
+
+    QPointF avg{(double)tab.back().time, get_average(tab.back().values)};
+    add_point(p.c_str(), key, avg);
+
+    StatKey key_box, key_inter;
+    switch(key) {
+    case StatKey::MEDIA:
+        key_box = StatKey::MEDIA_BOX;
+        key_inter= StatKey::MEDIA_INTERQUARTILE;
+        break;
+    case StatKey::TARGET:
+        key_box = StatKey::TARGET_BOX;
+        key_inter = StatKey::TARGET_INTERQUARTILE;
+        break;
+    case StatKey::RTT:
+        key_box = StatKey::RTT_BOX;
+        key_inter = StatKey::RTT_INTERQUARTILE;
+        break;
+    default:
+        return true;
+    }
+
+    QPointF inter{(double)tab.back().time, get_interquartile_average(tab.back().values)};
+    add_point(p.c_str(), key_inter, inter);
+    add_point(p.c_str(), key_box, QString::number(tab.back().time), tab.back().values);
+
+    return true;
+}
+
+void MedoozeDisplay::load_stat_line(const fs::path& p)
+{
+    fs::path file = p / "stats_line_medooze.csv";
+
+    std::ifstream ifs(file.c_str());
+    if(!ifs.is_open()) {
+        throw std::runtime_error("Could not open csv file with provided path : " + file.string());
+    }
+
+    create_serie(p, StatKey::MEDIA);
+    create_serie(p, StatKey::PROBING);
+    create_serie(p, StatKey::RTX);
+    create_serie(p, StatKey::TARGET);
+    create_serie(p, StatKey::RECEIVED_BITRATE);
+    create_serie(p, StatKey::LOSS);
+
+    create_serie(p, StatKey::MEDIA_INTERQUARTILE);
+    create_serie(p, StatKey::TARGET_INTERQUARTILE);
+    create_serie(p, StatKey::RTT_INTERQUARTILE);
+
+    create_serie<QBoxPlotSeries>(p, StatKey::MEDIA_BOX);
+    create_serie<QBoxPlotSeries>(p, StatKey::TARGET_BOX);
+    create_serie<QBoxPlotSeries>(p, StatKey::RTT_BOX);
+
+    std::vector<StatLinePoint<double>> media;
+    std::vector<StatLinePoint<double>> probing;
+    std::vector<StatLinePoint<double>> rtx;
+    std::vector<StatLinePoint<double>> target;
+    std::vector<StatLinePoint<double>> recv;
+    std::vector<StatLinePoint<double>> loss;
+
+    while(!ifs.eof()) {
+        if(!get_stats(p, ifs, media, StatKey::MEDIA)) break;
+        get_stats(p, ifs, probing, StatKey::PROBING);
+        get_stats(p, ifs, rtx, StatKey::RTX);
+        get_stats(p, ifs, rtx, StatKey::TARGET);
+        get_stats(p, ifs, rtx, StatKey::RECEIVED_BITRATE);
+        get_stats(p, ifs, rtx, StatKey::LOSS);
+    }
+
+    add_serie(p.c_str(), StatKey::MEDIA);
+    add_serie(p.c_str(), StatKey::PROBING);
+    add_serie(p.c_str(), StatKey::RTX);
+    add_serie(p.c_str(), StatKey::TARGET);
+    add_serie(p.c_str(), StatKey::RECEIVED_BITRATE);
+    add_serie(p.c_str(), StatKey::LOSS);
+
+    add_serie(p.c_str(), StatKey::MEDIA_INTERQUARTILE);
+    add_serie(p.c_str(), StatKey::TARGET_INTERQUARTILE);
+    add_serie(p.c_str(), StatKey::RTT_INTERQUARTILE);
+
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::MEDIA_BOX);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::TARGET_BOX);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::RTT_BOX);
+
+    _chart_bitrate->createDefaultAxes();
+    _chart_rtt->createDefaultAxes();
+}
+
 void MedoozeDisplay::load(const fs::path& p)
 {
-    if(p.filename().string() == "average") load_average(p);
+    if(p.filename().string() == "average") load_stat_line(p); // load_average(p);
     else load_exp(p);
 
     QFont font1, font2;
@@ -425,7 +529,7 @@ void MedoozeDisplay::load(const fs::path& p)
     axe.front()->setLabelsFont(font2);
     axe.front()->setGridLineVisible(false);
 
-    _chart_view_bitrate->hide();
+    // _chart_view_bitrate->hide();
 }
 
 void MedoozeDisplay::save(const fs::path& dir)

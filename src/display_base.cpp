@@ -49,36 +49,6 @@ void DisplayBase::create_legend()
     }
 }
 
-void DisplayBase::create_serie(const fs::path&p, uint8_t key)
-{
-    auto serie = new QLineSeries;
-
-    QString name;
-    QTextStream stream(&name);
-
-    std::stringstream exp_name(p.filename().string());
-
-    StatMap& map = _path_keys[p.c_str()];
-    if(map.empty()) {
-        init_map(map);
-        set_info(p);
-    }
-
-    // stream << std::get<StatsKeyProperty::NAME>(map[key]);
-
-    auto info = std::get<StatsKeyProperty::INFO>(map[key]);
-    if(_display_impl && info.editable) {
-        stream << info.impl_str << " " << (info.stream ? info.cc_str : "dgrams");
-        serie->setName(name);
-    }
-    else {
-        stream << std::get<StatsKeyProperty::NAME>(map[key]);
-        serie->setName(name);
-    }
-
-    std::get<StatsKeyProperty::SERIE>(map[key]) = serie;
-}
-
 void DisplayBase::unload(const fs::path& path)
 {
     auto map = _path_keys[path.c_str()];
