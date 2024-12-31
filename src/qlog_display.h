@@ -81,6 +81,8 @@ class QlogDisplay : public QObject, public DisplayBase
     template<typename T>
     bool get_stats(const fs::path& p, std::ifstream& ifs, std::vector<StatLinePoint<T>>& tab, StatKey key);
 
+    void set_makeup(const fs::path& p);
+
 public:
     QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info_widget);
     ~QlogDisplay() = default;

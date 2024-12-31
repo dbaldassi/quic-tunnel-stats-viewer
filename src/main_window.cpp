@@ -26,6 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->action1_0_7, &QAction::triggered, this, &MainWindow::on_ratio_1_0_7);
     connect(ui->action1_1, &QAction::triggered, this, &MainWindow::on_ratio_1_1);
     connect(ui->action2_1, &QAction::triggered, this, &MainWindow::on_ratio_2_1);
+    connect(ui->acitionShowImpl, &QAction::triggered, this, &MainWindow::on_impl_show);
 }
 
 void MainWindow::keyPressEvent(QKeyEvent * event)
@@ -78,7 +79,15 @@ void MainWindow::load()
 
 void MainWindow::on_exp_changed(QTreeWidgetItem* item, int column)
 {
-    if(item->childCount() > 0) return;
+    if(item->childCount() > 0) {
+        for(int i = 0; i < item->childCount(); ++i) {
+            auto child = item->child(i);
+            if(child->childCount() > 0 || child->text(0) == "average")
+                child->setCheckState(0, (child->checkState(0) == Qt::Checked) ? Qt::Unchecked : Qt::Checked);
+        }
+
+        return;
+    }
 
     fs::path path = _stats_dir;
 
@@ -146,6 +155,13 @@ void MainWindow::on_ratio_2_1()
     _all_bitrate_display->set_geometry(1, 0.5);
     _medooze_display->set_geometry(1, 0.5);
     _qlog_display->set_geometry(1, 0.5);
+}
+
+void MainWindow::on_impl_show(int checked)
+{
+    _recv_display->_display_impl = checked;
+    _qlog_display->_display_impl = checked;
+    _medooze_display->_display_impl = checked;
 }
 
 MainWindow::~MainWindow()

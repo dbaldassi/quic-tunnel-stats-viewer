@@ -49,7 +49,7 @@ void AllBitrateDisplay::create_legend(const fs::path& p, bool signal)
     }
 }
 
-void AllBitrateDisplay::add_stats(const fs::path& path, StatKey key, std::tuple<QString, QAbstractSeries*, QChart*, ExpInfo> s)
+void AllBitrateDisplay::add_stats(const fs::path& path, StatKey key, std::tuple<QString, QAbstractSeries*, QChart*, ExpInfo, bool> s)
 {
     auto& map = _path_keys[path.c_str()];
     map[key] = s;

@@ -56,14 +56,12 @@ protected:
         std::optional<QColor> color;
     };
 
-    using StatMap = QMap<uint8_t, std::tuple<QString, QAbstractSeries*, QChart*, ExpInfo>>;
+    using StatMap = QMap<uint8_t, std::tuple<QString, QAbstractSeries*, QChart*, ExpInfo, bool>>;
     QMap<QString, StatMap> _path_keys;
 
     QWidget     * _tab;
     QListWidget * _legend;
     QTreeWidget * _info;
-
-    bool _display_impl = true;
 
     enum StatsKeyProperty : uint8_t
     {
@@ -71,6 +69,7 @@ protected:
         SERIE,
         CHART,
         INFO,
+        SHOW,
         NUM_KEY
     };
 
@@ -92,7 +91,7 @@ protected:
     {
         auto map = _path_keys[path];
         auto s = static_cast<QLineSeries*>(std::get<StatsKeyProperty::SERIE>(map[key]));
-        *s << point;
+        if(s) *s << point;
     }
 
     template<typename T>
@@ -113,7 +112,7 @@ protected:
 
     template<typename T>
     struct StatLinePoint {
-        int time;
+        float time;
         std::vector<T> values;
     };
 
@@ -127,7 +126,10 @@ protected:
         std::istringstream iss(line_str);
 
         iss >> pts.back().time;
-        for(T val; iss >> val;) pts.back().values.push_back(val);
+        for(T val; iss >> val;) {
+            if(val != -1) pts.back().values.push_back(val);
+        }
+
         std::sort(pts.back().values.begin(), pts.back().values.end());
 
         return true;
@@ -164,40 +166,20 @@ protected:
     void add_serie(const QString& path, uint8_t key, QAbstractAxis* x_axis = nullptr, QAbstractAxis* y_axis = nullptr)
     {
         const auto& map = _path_keys[path];
-        auto* serie = static_cast<Serie*>(std::get<StatsKeyProperty::SERIE>(map[key]));
-        auto* chart = std::get<StatsKeyProperty::CHART>(map[key]);
-        auto info = std::get<StatsKeyProperty::INFO>(map[key]);
+        const auto& [_, serie, chart, info, show] = map[key];
 
-        if(chart) {
+        /*const auto& tuple = map[key];
+        auto* serie = static_cast<Serie*>(std::get<StatsKeyProperty::SERIE>(tuple));
+        auto* chart = std::get<StatsKeyProperty::CHART>(tuple);
+        auto show = std::get<StatsKeyProperty::SHOW>(tuple);*/
+
+        if(chart && serie) {
             chart->addSeries(serie);
+
+            if(!show) serie->hide();
 
             if constexpr(!std::is_same_v<Serie, QLineSeries>) {
                 return;
-            }
-
-            QFont font = chart->font();
-            font.setPointSize(44);
-            font.setBold(true);
-
-            chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
-            chart->legend()->setFont(font);
-            chart->legend()->detachFromChart();
-
-            // qInfo() << "geo ; " << chart->geometry();
-            // chart->legend()->setGeometry(chart->geometry());
-
-            auto pen = serie->pen();
-            pen.setWidth(8);
-            if(info.stream) pen.setStyle(Qt::DotLine);
-            if(info.color.has_value()) pen.setColor(*info.color);
-
-            serie->setPen(pen);
-
-            if(info.should_be_black) {
-                auto pen = serie->pen();
-                pen.setColor(Qt::black);
-                pen.setStyle(Qt::SolidLine);
-                serie->setPen(pen);
             }
 
             if(x_axis) {
@@ -237,8 +219,13 @@ protected:
 
         std::get<StatsKeyProperty::SERIE>(map[key]) = serie;
 
+        const auto& legend = _path_keys["legend"];
+        std::get<StatsKeyProperty::SHOW>(map[key]) = std::get<StatsKeyProperty::SHOW>(legend[key]);
+
         return serie;
     }
+
+    QColor get_color(const ExpInfo& info);
 
     static ExpInfo get_info(const fs::path& p);
 
@@ -252,6 +239,8 @@ protected:
     void set_info(const fs::path& path);
 
 public:
+    bool _display_impl = true;
+
     DisplayBase(QWidget* tab, QListWidget* legend, QTreeWidget* info);
 
     virtual void load(const fs::path& path) = 0;

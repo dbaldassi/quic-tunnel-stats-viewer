@@ -31,8 +31,6 @@ QlogDisplay::QlogDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend,
     layout->addWidget(_chart_view_bitrate, 1);
     layout->addWidget(_chart_view_rtt, 1);
 
-    _display_impl = false;
-
     create_legend();
 }
 
@@ -61,31 +59,93 @@ void QlogDisplay::on_keyboard_event(QKeyEvent* key)
 
 void QlogDisplay::init_map(StatMap& map, bool signal)
 {
-    map[StatKey::CWND] = std::make_tuple("Cwnd", nullptr, _chart_bitrate, ExpInfo{.stream = false});
-    map[StatKey::BYTES_IN_FLIGHT] = std::make_tuple("Bytes in flight", nullptr, _chart_bitrate, ExpInfo{.stream = false});
-    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{.stream = false});
-    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{.stream = false});
+    map[StatKey::CWND] = std::make_tuple("Cwnd", nullptr, _chart_bitrate, ExpInfo{.stream = false}, false);
+    map[StatKey::BYTES_IN_FLIGHT] = std::make_tuple("Bytes in flight", nullptr, _chart_bitrate, ExpInfo{.stream = false}, false);
+    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{.stream = false}, false);
+    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{.stream = false}, false);
 
-    map[StatKey::CWND_BOX] = std::make_tuple("Cwnd box", nullptr, _chart_bitrate, ExpInfo{.stream = false});
-    map[StatKey::BYTES_IN_FLIGHT_BOX] = std::make_tuple("Bytes in flight box", nullptr, _chart_bitrate, ExpInfo{.stream = false});
-    map[StatKey::RTT_BOX] = std::make_tuple("RTT box", nullptr, _chart_rtt, ExpInfo{.stream = false});
+    map[StatKey::CWND_BOX] = std::make_tuple("Cwnd box", nullptr, _chart_bitrate, ExpInfo{.stream = false}, false);
+    map[StatKey::BYTES_IN_FLIGHT_BOX] = std::make_tuple("Bytes in flight box", nullptr, _chart_bitrate, ExpInfo{.stream = false}, false);
+    map[StatKey::RTT_BOX] = std::make_tuple("RTT box", nullptr, _chart_rtt, ExpInfo{.stream = false}, false);
 
-    map[StatKey::CWND_INTERQUARTILE] = std::make_tuple("Cwnd interquartile", nullptr, _chart_bitrate, ExpInfo{.stream = false});
-    map[StatKey::BYTES_IN_FLIGHT_INTERQUARTILE] = std::make_tuple("Bytes in flight interquartile", nullptr, _chart_bitrate, ExpInfo{.stream = false});
-    map[StatKey::RTT_INTERQUARTILE] = std::make_tuple("RTT interquartile", nullptr, _chart_rtt, ExpInfo{.stream = false});
+    map[StatKey::CWND_INTERQUARTILE] = std::make_tuple("Cwnd", nullptr, _chart_bitrate, ExpInfo{.stream = false}, false);
+    map[StatKey::BYTES_IN_FLIGHT_INTERQUARTILE] = std::make_tuple("Bytes in flight", nullptr, _chart_bitrate, ExpInfo{.stream = false}, false);
+    map[StatKey::RTT_INTERQUARTILE] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{.stream = false}, false);
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
             StatKey key = static_cast<StatKey>(item->data(1).toUInt());
 
+            std::get<StatsKeyProperty::SHOW>(map[(uint8_t)key]) = item->checkState() == Qt::Checked;
+
             auto line = std::get<StatsKeyProperty::SERIE>(map[key]);
             if(line == nullptr) return;
 
-            if(item->checkState()) line->show();
+            if(item->checkState() == Qt::Checked) line->show();
             else line->hide();
         });
     }
 }
+
+void QlogDisplay::set_makeup(const fs::path& path)
+{
+    const auto& map = _path_keys[path.c_str()];
+
+    QFont font = _chart_bitrate->font();
+    font.setPointSize(40);
+    font.setBold(true);
+
+    _chart_bitrate->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    _chart_bitrate->legend()->setFont(font);
+    _chart_bitrate->legend()->detachFromChart();
+
+    _chart_rtt->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    _chart_rtt->legend()->setFont(font);
+    _chart_rtt->legend()->detachFromChart();
+
+    for(const auto& [name, abs_serie, chart, info, show] : map) {
+        auto* serie = dynamic_cast<QLineSeries*>(abs_serie);
+        if(!serie) continue;
+
+        auto pen = serie->pen();
+        pen.setWidth(6);
+
+        QColor color = get_color(info);
+        pen.setColor(color);
+
+        if(name == "Bytes in flight") {
+            pen.setWidth(4);
+            pen.setStyle(Qt::DashLine);
+        }
+
+        serie->setPen(pen);
+    }
+
+    auto setup_axes = [&font](auto&& axe,const std::string& name) {
+        axe->setTitleText(name.c_str());
+
+        font.setPointSize(40);
+        axe->setTitleFont(font);
+
+        font.setPointSize(36);
+        axe->setLabelsFont(font);
+        axe->setGridLineVisible(false);
+    };
+
+    auto axes = _chart_bitrate->axes(Qt::Horizontal);
+    if(!axes.empty()) setup_axes(axes.front(), "Time (s)");
+
+    axes = _chart_bitrate->axes(Qt::Vertical);
+    if(!axes.empty()) setup_axes(axes.front(), "Packets (KBytes)");
+    if(axes.size() == 2) setup_axes(axes.back(), "Loss");
+
+    axes = _chart_rtt->axes(Qt::Horizontal);
+    if(!axes.empty()) setup_axes(axes.front(), "Time (s)");
+
+    axes = _chart_rtt->axes(Qt::Vertical);
+    if(!axes.empty()) setup_axes(axes.front(), "RTT (ms)");
+}
+
 
 void QlogDisplay::add_info(const fs::path& path, const Info& info)
 {
@@ -392,23 +452,46 @@ bool QlogDisplay::get_stats(const fs::path& p, std::ifstream& ifs, std::vector<S
         return false;
     }
 
+    // if(tab.back().values.size() < 4) return true;
+    const auto& map = _path_keys[p.c_str()];
+    const auto& info = std::get<StatsKeyProperty::INFO>(map[key]);
+
+    if((key == StatKey::CWND || key == StatKey::BYTES_IN_FLIGHT)) {
+        for(int i = 0; i < tab.back().values.size(); ++i) tab.back().values[i] /= 1000.;
+    }
+
+    if(tab.back().values.size() < 4) {
+        auto time = tab.back().time;
+        tab.pop_back();
+
+        if(tab.size() > 0) {
+            tab.push_back(tab.back());
+            tab.back().time = time;
+        }
+    }
+
     QPointF avg{(double)tab.back().time, get_average(tab.back().values)};
 
-    StatKey key_box;
+    StatKey key_box, key_inter;
     switch(key) {
     case StatKey::CWND:
         key_box = StatKey::CWND_BOX;
+        key_inter = StatKey::CWND_INTERQUARTILE;
         break;
     case StatKey::BYTES_IN_FLIGHT:
         key_box = StatKey::BYTES_IN_FLIGHT_BOX;
+        key_inter = StatKey::BYTES_IN_FLIGHT_INTERQUARTILE;
         break;
     case StatKey::RTT:
         key_box = StatKey::RTT_BOX;
+        key_inter = StatKey::RTT_INTERQUARTILE;
         break;
     default:
         return false;
     }
 
+    QPointF inter{(double)tab.back().time, get_interquartile_average(tab.back().values)};
+    add_point(p.c_str(), key_inter, inter);
     add_point(p.c_str(), key, avg);
     add_point(p.c_str(), key_box, QString::number(tab.back().time), tab.back().values);
 
@@ -440,7 +523,6 @@ void QlogDisplay::load_stats_line(const fs::path& p)
 
     while(!ifs.eof()) {
         if(!get_stats(p, ifs, cwnd, StatKey::CWND)) break;
-
         get_stats(p, ifs, bif, StatKey::BYTES_IN_FLIGHT);
         get_stats(p, ifs, rtt, StatKey::RTT);
     }
@@ -449,9 +531,13 @@ void QlogDisplay::load_stats_line(const fs::path& p)
     add_serie(p.c_str(), StatKey::BYTES_IN_FLIGHT);
     add_serie(p.c_str(), StatKey::RTT);
 
-    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::CWND_BOX);
-    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::BYTES_IN_FLIGHT_BOX);
-    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::RTT_BOX);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::CWND_INTERQUARTILE);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::BYTES_IN_FLIGHT_INTERQUARTILE);
+    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::RTT_INTERQUARTILE);
+
+    // add_serie<QBoxPlotSeries>(p.c_str(), StatKey::CWND_BOX);
+    // add_serie<QBoxPlotSeries>(p.c_str(), StatKey::BYTES_IN_FLIGHT_BOX);
+    // add_serie<QBoxPlotSeries>(p.c_str(), StatKey::RTT_BOX);
 
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
@@ -462,46 +548,7 @@ void QlogDisplay::load(const fs::path& p)
     if(p.filename().string() == "average") load_stats_line(p); // load_average(p);
     else load_exp(p);
 
-    QFont font1, font2;
-    font1.setPointSize(40);
-    font2.setPointSize(36);
-    font1.setBold(true);
-    font2.setBold(true);
-
-    auto axe = _chart_bitrate->axes(Qt::Horizontal);
-    if(!axe.empty()) {
-        axe.front()->setTitleText("Time (s)");
-        axe.front()->setTitleFont(font1);
-        axe.front()->setLabelsFont(font2);
-        axe.front()->setGridLineVisible(false);
-    }
-
-    axe = _chart_bitrate->axes(Qt::Vertical);
-    if(!axe.empty()) axe.front()->setTitleText("Bytes (KB)");
-    if(axe.size() == 2) axe.back()->setTitleText("Loss");
-
-    for(auto& it : axe) {
-        it->setTitleFont(font1);
-        it->setLabelsFont(font2);
-        it->setGridLineVisible(false);
-    }
-
-    axe = _chart_rtt->axes(Qt::Horizontal);
-    if(!axe.empty()) {
-        axe.front()->setTitleText("Time (s)");
-        axe.front()->setTitleFont(font1);
-        axe.front()->setLabelsFont(font2);
-        axe.front()->setGridLineVisible(false);
-    }
-
-    axe = _chart_rtt->axes(Qt::Vertical);
-    if(!axe.empty()) axe.front()->setTitleText("Time (ms)");
-    for(auto& it : axe) {
-        it->setTitleFont(font1);
-        it->setLabelsFont(font2);
-        it->setGridLineVisible(false);
-    }
-
+    set_makeup(p);
     // _chart_view_rtt->hide();
 }
 
@@ -519,7 +566,7 @@ void QlogDisplay::add_to_all(const fs::path& dir, AllBitrateDisplay* all)
     auto& map = _path_keys[dir.c_str()];
     // all->add_stats(dir, AllBitrateDisplay::CWND, map[CWND]);
     // all->add_stats(dir, AllBitrateDisplay::BYTES_IN_FLIGHT, map[BYTES_IN_FLIGHT]);
-    all->add_stats(dir, AllBitrateDisplay::QUIC_RTT, map[RTT]);
+    // all->add_stats(dir, AllBitrateDisplay::QUIC_RTT, map[RTT]);
     // all->add_stats(dir, AllBitrateDisplay::QUIC_LOSS, map[LOSS]);
 }
 

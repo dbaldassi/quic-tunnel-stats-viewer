@@ -1,3 +1,4 @@
+#include <QGraphicsLayout>
 #include "stats_line_chart.h"
 
 StatsLineChartView::StatsLineChartView(QChart *chart, QWidget *parent)
@@ -104,6 +105,9 @@ StatsLineChart::StatsLineChart(QGraphicsItem *parent, Qt::WindowFlags wFlags)
 {
     grabGesture(Qt::PanGesture);
     grabGesture(Qt::PinchGesture);
+
+    layout()->setContentsMargins(0, 0, 0, 0);
+    setBackgroundRoundness(0);
 }
 
 bool StatsLineChart::sceneEvent(QEvent *event)

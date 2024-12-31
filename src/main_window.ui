@@ -228,6 +228,7 @@
      <string>File</string>
     </property>
     <addaction name="actionscreenshot"/>
+    <addaction name="acitionShowImpl"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -265,6 +266,17 @@
   <action name="action2_1">
    <property name="text">
     <string>2:1</string>
+   </property>
+  </action>
+  <action name="acitionShowImpl">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show Implementation name</string>
    </property>
   </action>
  </widget>

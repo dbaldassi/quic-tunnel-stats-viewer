@@ -47,6 +47,7 @@ public slots:
     void on_ratio_1_0_7();
     void on_ratio_1_1();
     void on_ratio_2_1();
+    void on_impl_show(int checked);
 };
 
 #endif // MAIN_WINDOW_H

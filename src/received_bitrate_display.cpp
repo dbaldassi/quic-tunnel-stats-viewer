@@ -27,7 +27,6 @@ ReceivedBitrateDisplay::ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout
     layout->addWidget(_chart_view_fps, 1);
 
     create_legend();
-
 }
 
 void ReceivedBitrateDisplay::on_keyboard_event(QKeyEvent* key)
@@ -44,30 +43,96 @@ void ReceivedBitrateDisplay::on_keyboard_event(QKeyEvent* key)
 
 void ReceivedBitrateDisplay::init_map(StatMap& map, bool signal)
 {
-    map[StatKey::LINK] = std::make_tuple("link", nullptr, _chart_bitrate, ExpInfo{false, QuicImpl::NONE, CCAlgo::NONE, false, true});
-    map[StatKey::BITRATE] = std::make_tuple("bitrate", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::FPS] = std::make_tuple("fps", nullptr, _chart_fps, ExpInfo{});
-    map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", nullptr, nullptr, ExpInfo{});
-    map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", nullptr, nullptr, ExpInfo{});
-    map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", nullptr, nullptr, ExpInfo{});
-    map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", nullptr, nullptr, ExpInfo{});
-    map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::LINK] = std::make_tuple("link", nullptr, _chart_bitrate, ExpInfo{false, QuicImpl::NONE, CCAlgo::NONE, false, true}, false);
+    map[StatKey::BITRATE] = std::make_tuple("bitrate", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::FPS] = std::make_tuple("fps", nullptr, _chart_fps, ExpInfo{}, false);
+    map[StatKey::FRAME_DROPPED] = std::make_tuple("frame dropped", nullptr, nullptr, ExpInfo{}, false);
+    map[StatKey::FRAME_DECODED] = std::make_tuple("frame decoded", nullptr, nullptr, ExpInfo{}, false);
+    map[StatKey::FRAME_KEY_DECODED] = std::make_tuple("frame key decoded", nullptr, nullptr, ExpInfo{}, false);
+    map[StatKey::FRAME_RENDERED] = std::make_tuple("frame rendered", nullptr, nullptr, ExpInfo{}, false);
+    map[StatKey::QUIC_SENT] = std::make_tuple("quic sent bitrate", nullptr, _chart_bitrate, ExpInfo{}, false);
 
-    map[StatKey::BITRATE_INTERQUARTILE] = std::make_tuple("bitrate interquartile", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::BITRATE_BOX] = std::make_tuple("bitrate box", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::FPS_BOX] = std::make_tuple("fps box", nullptr, _chart_fps, ExpInfo{});
+    map[StatKey::BITRATE_INTERQUARTILE] = std::make_tuple("bitrate interquartile", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::BITRATE_BOX] = std::make_tuple("bitrate box", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::FPS_INTERQUARTILE] = std::make_tuple("fps interquartile", nullptr, _chart_fps, ExpInfo{}, false);
+    map[StatKey::FPS_BOX] = std::make_tuple("fps box", nullptr, _chart_fps, ExpInfo{}, false);
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
             StatKey key = static_cast<StatKey>(item->data(1).toUInt());
 
-            auto line = std::get<StatsKeyProperty::SERIE>(map[(uint8_t)key]);
+            std::get<StatsKeyProperty::SHOW>(map[key]) = item->checkState() == Qt::Checked;
+
+            auto line = std::get<StatsKeyProperty::SERIE>(map[key]);
             if(line == nullptr) return;
 
-            if(item->checkState()) line->show();
+            if(item->checkState() == Qt::Checked) line->show();
             else line->hide();
         });
     }
+}
+
+void ReceivedBitrateDisplay::set_makeup(const fs::path& path)
+{
+    const auto& map = _path_keys[path.c_str()];
+
+    QFont font = _chart_bitrate->font();
+    font.setPointSize(40);
+    font.setBold(true);
+
+    _chart_bitrate->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    _chart_bitrate->legend()->setFont(font);
+    _chart_bitrate->legend()->detachFromChart();
+
+    _chart_fps->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    _chart_fps->legend()->setFont(font);
+    _chart_fps->legend()->detachFromChart();
+
+    for(const auto& [name, abs_serie, chart, info, show] : map) {
+        auto* serie = dynamic_cast<QLineSeries*>(abs_serie);
+        if(!serie) continue;
+
+        auto pen = serie->pen();
+        pen.setWidth(6);
+        if(!info.stream) pen.setStyle(Qt::DashLine);
+
+        QColor color = get_color(info);
+        pen.setColor(color);
+
+        if(name == "link") {
+            pen.setWidth(8);
+            pen.setColor(Qt::black);
+            pen.setStyle(Qt::SolidLine);
+        }
+        else if(name == "quic sent bitrate") {
+            pen.setStyle(Qt::DashDotDotLine);
+        }
+
+        serie->setPen(pen);
+    }
+
+    auto setup_axes = [&font](auto&& axe,const std::string& name) {
+        axe->setTitleText(name.c_str());
+
+        font.setPointSize(40);
+        axe->setTitleFont(font);
+
+        font.setPointSize(36);
+        axe->setLabelsFont(font);
+        axe->setGridLineVisible(false);
+    };
+
+    auto axes = _chart_bitrate->axes(Qt::Horizontal);
+    if(!axes.empty()) setup_axes(axes.front(), "Time (s)");
+
+    axes = _chart_bitrate->axes(Qt::Vertical);
+    if(!axes.empty()) setup_axes(axes.front(), "Bitrate (kbps)");
+
+    axes = _chart_fps->axes(Qt::Horizontal);
+    if(!axes.empty()) setup_axes(axes.front(), "Time (s)");
+
+    axes = _chart_fps->axes(Qt::Vertical);
+    if(!axes.empty()) setup_axes(axes.front(), "FPS");
 }
 
 void ReceivedBitrateDisplay::load_exp(const fs::path& p)
@@ -198,7 +263,7 @@ bool ReceivedBitrateDisplay::get_stats(const fs::path& p, std::ifstream& ifs, st
         key_inter = StatKey::FPS_INTERQUARTILE;
         break;
     case StatKey::LINK: {
-        QPoint pt{tab.back().time, tab.back().values.front()};
+        QPoint pt{(int)tab.back().time, tab.back().values.front()};
         add_point(p.c_str(), key, pt);
         return true;
     }
@@ -225,7 +290,9 @@ void ReceivedBitrateDisplay::load_stat_line(const fs::path& p)
         throw std::runtime_error("Could not open csv file with provided path : " + file.string());
     }
 
-    if(_path_keys.empty()) create_serie(p, StatKey::LINK);
+    // to have link only one time
+    // == 1 becasue there should already be legend hence not empty
+    if(_path_keys.size() == 1) create_serie(p, StatKey::LINK);
 
     create_serie(p, StatKey::BITRATE);
     create_serie(p, StatKey::BITRATE_INTERQUARTILE);
@@ -234,6 +301,8 @@ void ReceivedBitrateDisplay::load_stat_line(const fs::path& p)
     create_serie(p, StatKey::FPS);
     create_serie(p, StatKey::FPS_INTERQUARTILE);
     create_serie<QBoxPlotSeries>(p, StatKey::FPS_BOX);
+
+    // set_makeup(p);
 
     std::vector<StatLinePoint<int>> bitrate;
     std::vector<StatLinePoint<int>> fps;
@@ -248,8 +317,10 @@ void ReceivedBitrateDisplay::load_stat_line(const fs::path& p)
     add_serie(p.c_str(), StatKey::LINK);
     add_serie(p.c_str(), StatKey::BITRATE);
     add_serie(p.c_str(), StatKey::BITRATE_INTERQUARTILE);
-    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::BITRATE_BOX);
-    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::FPS_BOX);
+    add_serie(p.c_str(), StatKey::FPS);
+    add_serie(p.c_str(), StatKey::FPS_INTERQUARTILE);
+    // add_serie<QBoxPlotSeries>(p.c_str(), StatKey::BITRATE_BOX);
+    // add_serie<QBoxPlotSeries>(p.c_str(), StatKey::FPS_BOX);
 }
 
 // bitrate.csv : time, bitrate, link, fps, frame_dropped, frame_decoded, frame_keydecoded, frame_rendered
@@ -262,41 +333,7 @@ void ReceivedBitrateDisplay::load(const fs::path& p)
     _chart_bitrate->createDefaultAxes();
     _chart_fps->createDefaultAxes();
 
-    QFont font1, font2;
-    font1.setPointSize(40);
-    font2.setPointSize(36);
-    font1.setBold(true);
-    font2.setBold(true);
-
-    auto axe = _chart_bitrate->axes(Qt::Horizontal);
-    if(!axe.empty()) {
-        axe.front()->setTitleText("Time (s)");
-        axe.front()->setTitleFont(font1);
-        axe.front()->setLabelsFont(font2);
-        axe.front()->setGridLineVisible(false);
-    }
-
-    axe = _chart_bitrate->axes(Qt::Vertical);
-    if(!axe.empty()) {
-        axe.front()->setTitleText("Bitrate (kbps)");
-        axe.front()->setTitleFont(font1);
-        axe.front()->setLabelsFont(font2);
-        axe.front()->setGridLineVisible(false);
-    }
-
-    axe = _chart_fps->axes(Qt::Horizontal);
-    if(!axe.empty()) {
-        axe.front()->setTitleText("Time (s)");
-        axe.front()->setTitleFont(font1);
-        axe.front()->setLabelsFont(font2);
-    }
-
-    axe = _chart_fps->axes(Qt::Vertical);
-    if(!axe.empty()) {
-        axe.front()->setTitleText("FPS");
-        axe.front()->setTitleFont(font1);
-        axe.front()->setLabelsFont(font2);
-    }
+    set_makeup(p);
 
     // _chart_view_fps->hide();
     // _chart_view_bitrate->setGeometry(0,0,1,1);

@@ -37,13 +37,13 @@ StatsLineChartView * DisplayBase::create_chart_view(QChart* chart)
 
 void DisplayBase::create_legend()
 {
-    StatMap map;
-    init_map(map, false);
+    StatMap& map = _path_keys["legend"];
+    init_map(map);
 
     for(auto it = map.cbegin(); it != map.cend(); ++it) {
         QListWidgetItem * item = new QListWidgetItem(_legend);
         item->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
-        item->setCheckState(Qt::Checked);
+        item->setCheckState(Qt::Unchecked);
         item->setText(std::get<StatsKeyProperty::NAME>(it.value()));
         item->setData(1, static_cast<uint8_t>(it.key()));
     }
@@ -71,6 +71,8 @@ void DisplayBase::unload(const fs::path& path)
         _info->removeItemWidget(it, 0);
         delete it;
     }
+
+    _path_keys.remove(path.c_str());
 }
 
 void DisplayBase::set_info(const fs::path& path)
@@ -92,13 +94,12 @@ DisplayBase::ExpInfo DisplayBase::get_info(const fs::path& path)
     ExpInfo info;
 
     for(auto& it : path) {
-        if(it == "streams") {
+        if(it == "streams" || it == "stream") {
             info.stream = true;
         }
-        else if(it == "dgrams") {
+        else if(it == "dgrams" || it == "dgram") {
             info.stream = false;
         }
-
         else if(it == "mvfst") {
             info.impl = QuicImpl::MVFST;
             info.impl_str = it.c_str();
@@ -119,7 +120,6 @@ DisplayBase::ExpInfo DisplayBase::get_info(const fs::path& path)
             info.impl = QuicImpl::UDP;
             info.impl_str = it.c_str();
         }
-
         else if(it == "bbr") {
             info.cc = CCAlgo::BBR;
             info.cc_str = it.c_str();
@@ -140,10 +140,48 @@ DisplayBase::ExpInfo DisplayBase::get_info(const fs::path& path)
             info.cc = CCAlgo::CUBIC;
             info.cc_str = it.c_str();
         }
-
     }
 
     return info;
 }
 
 
+QColor DisplayBase::get_color(const DisplayBase::ExpInfo& info)
+{
+    switch(info.impl) {
+    case QuicImpl::MVFST:
+        switch(info.cc) {
+        case CCAlgo::BBR:
+            return Qt::green;
+        case CCAlgo::CUBIC:
+            return Qt::darkCyan;
+        case CCAlgo::NEWRENO:
+            return Qt::darkBlue;
+        case CCAlgo::COPA:
+            return Qt::darkMagenta;
+        case CCAlgo::NONE:
+            return Qt::darkGray;
+        }
+        break;
+    case QuicImpl::MSQUIC:
+        switch(info.cc) {
+        case CCAlgo::BBR:
+            return Qt::darkRed;
+        case CCAlgo::CUBIC:
+            return Qt::darkYellow;
+        default:
+            break;
+        }
+        break;
+    case QuicImpl::QUICGO:
+        return QColor(255,128,0);
+    case QuicImpl::UDP:
+        return QColor(255,0,196);
+    case QuicImpl::QUICHE:
+        break;
+    default:
+        return Qt::black;
+    }
+
+    return Qt::black;
+}

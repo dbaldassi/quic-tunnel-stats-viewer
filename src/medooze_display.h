@@ -123,6 +123,8 @@ public:
     template<typename T>
     bool get_stats(const fs::path& p, std::ifstream& ifs, std::vector<StatLinePoint<T>>& tab, StatKey key);
 
+    void set_makeup(const fs::path& path);
+
  private:
 
     StatsLineChart * _chart_bitrate, * _chart_rtt;

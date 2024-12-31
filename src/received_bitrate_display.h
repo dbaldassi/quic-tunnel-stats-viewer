@@ -75,9 +75,10 @@ class ReceivedBitrateDisplay : public QObject, public DisplayBase
     void load_exp(const fs::path& p);
     void load_stat_line(const fs::path& p);
 
+    void set_makeup(const fs::path& p);
+
     template<typename T>
     bool get_stats(const fs::path& p, std::ifstream& ifs, std::vector<StatLinePoint<T>>& tab, StatKey key);
-
 public:
     ReceivedBitrateDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* legend, QTreeWidget* info_widget);
     ~ReceivedBitrateDisplay() = default;

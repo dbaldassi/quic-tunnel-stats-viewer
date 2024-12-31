@@ -23,7 +23,6 @@ MedoozeDisplay::MedoozeDisplay(QWidget* tab, QVBoxLayout* layout, QListWidget* l
     layout->addWidget(_chart_view_bitrate, 1);
     layout->addWidget(_chart_view_rtt, 1);
 
-    _display_impl = false;
     create_legend();
 }
 
@@ -41,39 +40,101 @@ void MedoozeDisplay::on_keyboard_event(QKeyEvent* key)
 
 void MedoozeDisplay::init_map(StatMap& map, bool signal)
 {
-    map[StatKey::BWE] = std::make_tuple("Bwe", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::TARGET] = std::make_tuple("Target", nullptr, _chart_bitrate, ExpInfo{});
+    map[StatKey::BWE] = std::make_tuple("Bwe", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::TARGET] = std::make_tuple("Target", nullptr, _chart_bitrate, ExpInfo{}, false);
     // map[StatKey::AVAILABLE_BITRATE] = std::make_tuple("Available bitrate", nullptr, _chart_bitrate);
-    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{});
-    map[StatKey::RTX] = std::make_tuple("RTX", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::PROBING] = std::make_tuple("Probing", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::MEDIA] = std::make_tuple("Media", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::MINRTT] = std::make_tuple("Min rtt", nullptr, _chart_rtt, ExpInfo{});
-    map[StatKey::TOTAL] = std::make_tuple("Total", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::RECEIVED_BITRATE] = std::make_tuple("Received bitrate", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::FBDELAY] = std::make_tuple("Feedback delay", nullptr, _chart_rtt, ExpInfo{});
-    map[StatKey::LOSS_ACCUMULATED] = std::make_tuple("Loss accumulated", nullptr, _chart_rtt, ExpInfo{});
+    map[StatKey::RTT] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{}, false);
+    map[StatKey::RTX] = std::make_tuple("RTX", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::PROBING] = std::make_tuple("Probing", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::MEDIA] = std::make_tuple("Media", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::LOSS] = std::make_tuple("Loss", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::MINRTT] = std::make_tuple("Min rtt", nullptr, _chart_rtt, ExpInfo{}, false);
+    map[StatKey::TOTAL] = std::make_tuple("Total", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::RECEIVED_BITRATE] = std::make_tuple("Received bitrate", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::FBDELAY] = std::make_tuple("Feedback delay", nullptr, _chart_rtt, ExpInfo{}, false);
+    map[StatKey::LOSS_ACCUMULATED] = std::make_tuple("Loss accumulated", nullptr, _chart_rtt, ExpInfo{}, false);
 
-    map[StatKey::MEDIA_BOX] = std::make_tuple("Media box", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::TARGET_BOX] = std::make_tuple("Target box", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::RTT_BOX] = std::make_tuple("rtt box", nullptr, _chart_rtt, ExpInfo{});
+    map[StatKey::MEDIA_BOX] = std::make_tuple("Media box", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::TARGET_BOX] = std::make_tuple("Target box", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::RTT_BOX] = std::make_tuple("rtt box", nullptr, _chart_rtt, ExpInfo{}, false);
 
-    map[StatKey::MEDIA_INTERQUARTILE] = std::make_tuple("Media interquartile", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::TARGET_INTERQUARTILE] = std::make_tuple("Target interquatile", nullptr, _chart_bitrate, ExpInfo{});
-    map[StatKey::RTT_INTERQUARTILE] = std::make_tuple("rtt interquartile", nullptr, _chart_rtt, ExpInfo{});
+    map[StatKey::MEDIA_INTERQUARTILE] = std::make_tuple("Media", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::TARGET_INTERQUARTILE] = std::make_tuple("Target", nullptr, _chart_bitrate, ExpInfo{}, false);
+    map[StatKey::RTT_INTERQUARTILE] = std::make_tuple("RTT", nullptr, _chart_rtt, ExpInfo{}, false);
 
     if(signal) {
         connect(_legend, &QListWidget::itemChanged, this, [&map](QListWidgetItem* item) -> void {
             StatKey key = static_cast<StatKey>(item->data(1).toUInt());
 
+            std::get<StatsKeyProperty::SHOW>(map[key]) = item->checkState() == Qt::Checked;
+
             auto line = std::get<StatsKeyProperty::SERIE>(map[key]);
             if(line == nullptr) return;
 
-            if(item->checkState()) line->show();
+            if(item->checkState() ==  Qt::Checked) line->show();
             else line->hide();
         });
     }
+}
+
+void MedoozeDisplay::set_makeup(const fs::path& path)
+{
+    const auto& map = _path_keys[path.c_str()];
+
+    QFont font = _chart_bitrate->font();
+    font.setPointSize(40);
+    font.setBold(true);
+
+    _chart_bitrate->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    _chart_bitrate->legend()->setFont(font);
+    _chart_bitrate->legend()->detachFromChart();
+
+    _chart_rtt->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    _chart_rtt->legend()->setFont(font);
+    _chart_rtt->legend()->detachFromChart();
+
+    for(const auto& [name, abs_serie, chart, info, show] : map) {
+        auto* serie = dynamic_cast<QLineSeries*>(abs_serie);
+        if(!serie) continue;
+
+        auto pen = serie->pen();
+        pen.setWidth(6);
+        if(!info.stream) pen.setStyle(Qt::DashLine);
+
+        QColor color = get_color(info);
+        pen.setColor(color);
+
+        if(name == "Media") {
+            pen.setWidth(4);
+            pen.setStyle(Qt::DashLine);
+        }
+
+        serie->setPen(pen);
+    }
+
+    auto setup_axes = [&font](auto&& axe,const std::string& name) {
+        axe->setTitleText(name.c_str());
+
+        font.setPointSize(40);
+        axe->setTitleFont(font);
+
+        font.setPointSize(36);
+        axe->setLabelsFont(font);
+        axe->setGridLineVisible(false);
+    };
+
+    auto axes = _chart_bitrate->axes(Qt::Horizontal);
+    if(!axes.empty()) setup_axes(axes.front(), "Time (s)");
+
+    axes = _chart_bitrate->axes(Qt::Vertical);
+    if(!axes.empty()) setup_axes(axes.front(), "Bitrate (kbps)");
+    if(axes.size() == 2) setup_axes(axes.back(), "Loss");
+
+    axes = _chart_rtt->axes(Qt::Horizontal);
+    if(!axes.empty()) setup_axes(axes.front(), "Time (s)");
+
+    axes = _chart_rtt->axes(Qt::Vertical);
+    if(!axes.empty()) setup_axes(axes.front(), "RTT (ms)");
 }
 
 void MedoozeDisplay::Info::Stats::process(QTreeWidgetItem* root)
@@ -400,6 +461,10 @@ bool MedoozeDisplay::get_stats(const fs::path& p, std::ifstream& ifs, std::vecto
         return false;
     }
 
+    if(key != StatKey::RTT && key != StatKey::LOSS) {
+        for(int i = 0; i < tab.back().values.size(); ++i) tab.back().values[i] /= 1000.;
+    }
+
     QPointF avg{(double)tab.back().time, get_average(tab.back().values)};
     add_point(p.c_str(), key, avg);
 
@@ -440,6 +505,7 @@ void MedoozeDisplay::load_stat_line(const fs::path& p)
     create_serie(p, StatKey::MEDIA);
     create_serie(p, StatKey::PROBING);
     create_serie(p, StatKey::RTX);
+    create_serie(p, StatKey::RTT);
     create_serie(p, StatKey::TARGET);
     create_serie(p, StatKey::RECEIVED_BITRATE);
     create_serie(p, StatKey::LOSS);
@@ -455,6 +521,7 @@ void MedoozeDisplay::load_stat_line(const fs::path& p)
     std::vector<StatLinePoint<double>> media;
     std::vector<StatLinePoint<double>> probing;
     std::vector<StatLinePoint<double>> rtx;
+    std::vector<StatLinePoint<double>> rtt;
     std::vector<StatLinePoint<double>> target;
     std::vector<StatLinePoint<double>> recv;
     std::vector<StatLinePoint<double>> loss;
@@ -463,9 +530,10 @@ void MedoozeDisplay::load_stat_line(const fs::path& p)
         if(!get_stats(p, ifs, media, StatKey::MEDIA)) break;
         get_stats(p, ifs, probing, StatKey::PROBING);
         get_stats(p, ifs, rtx, StatKey::RTX);
-        get_stats(p, ifs, rtx, StatKey::TARGET);
-        get_stats(p, ifs, rtx, StatKey::RECEIVED_BITRATE);
-        get_stats(p, ifs, rtx, StatKey::LOSS);
+        get_stats(p, ifs, target, StatKey::TARGET);
+        get_stats(p, ifs, recv, StatKey::RECEIVED_BITRATE);
+        get_stats(p, ifs, rtt, StatKey::RTT);
+        get_stats(p, ifs, loss, StatKey::LOSS);
     }
 
     add_serie(p.c_str(), StatKey::MEDIA);
@@ -479,9 +547,9 @@ void MedoozeDisplay::load_stat_line(const fs::path& p)
     add_serie(p.c_str(), StatKey::TARGET_INTERQUARTILE);
     add_serie(p.c_str(), StatKey::RTT_INTERQUARTILE);
 
-    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::MEDIA_BOX);
-    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::TARGET_BOX);
-    add_serie<QBoxPlotSeries>(p.c_str(), StatKey::RTT_BOX);
+    // add_serie<QBoxPlotSeries>(p.c_str(), StatKey::MEDIA_BOX);
+    // add_serie<QBoxPlotSeries>(p.c_str(), StatKey::TARGET_BOX);
+    // add_serie<QBoxPlotSeries>(p.c_str(), StatKey::RTT_BOX);
 
     _chart_bitrate->createDefaultAxes();
     _chart_rtt->createDefaultAxes();
@@ -492,43 +560,7 @@ void MedoozeDisplay::load(const fs::path& p)
     if(p.filename().string() == "average") load_stat_line(p); // load_average(p);
     else load_exp(p);
 
-    QFont font1, font2;
-    font1.setPointSize(40);
-    font2.setPointSize(36);
-    font1.setBold(true);
-    font2.setBold(true);
-
-    auto axe = _chart_bitrate->axes(Qt::Horizontal);
-    axe.front()->setTitleText("Time (s)");
-    axe.front()->setTitleFont(font1);
-    axe.front()->setLabelsFont(font2);
-    axe.front()->setGridLineVisible(false);
-
-    axe = _chart_bitrate->axes(Qt::Vertical);
-    axe.front()->setTitleText("Bitrate (kbps)");
-    axe.front()->setTitleFont(font1);
-    axe.front()->setLabelsFont(font2);
-    axe.front()->setGridLineVisible(false);
-
-    if(axe.size() == 2) {
-        axe.back()->setTitleText("Loss");
-        axe.back()->setTitleFont(font1);
-        axe.back()->setLabelsFont(font2);
-        axe.back()->setGridLineVisible(false);
-    }
-
-    axe = _chart_rtt->axes(Qt::Horizontal);
-    axe.front()->setTitleText("Time (s)");
-    axe.front()->setTitleFont(font1);
-    axe.front()->setLabelsFont(font2);
-    axe.front()->setGridLineVisible(false);
-
-    axe = _chart_rtt->axes(Qt::Vertical);
-    axe.front()->setTitleText("Time (ms)");
-    axe.front()->setTitleFont(font1);
-    axe.front()->setLabelsFont(font2);
-    axe.front()->setGridLineVisible(false);
-
+    set_makeup(p);
     // _chart_view_bitrate->hide();
 }
 
@@ -549,7 +581,7 @@ void MedoozeDisplay::add_to_all(const fs::path& dir, AllBitrateDisplay* all)
     // all->add_stats(dir, AllBitrateDisplay::MEDIA, map[MEDIA]);
     // all->add_stats(dir, AllBitrateDisplay::TOTAL, map[TOTAL]);
     // all->add_stats(dir, AllBitrateDisplay::RTX, map[RTX]);
-    all->add_stats(dir, AllBitrateDisplay::MEDOOZE_RTT, map[RTT]);
+    // all->add_stats(dir, AllBitrateDisplay::MEDOOZE_RTT, map[RTT]);
     // all->add_stats(dir, AllBitrateDisplay::MEDOOZE_LOSS, map[LOSS]);
     // all->add_stats(dir, AllBitrateDisplay::MEDOOZE_LOSS, map[LOSS_ACCUMULATED]);
 }
